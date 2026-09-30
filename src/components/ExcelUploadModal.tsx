@@ -93,15 +93,16 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
       if (incidents.length === 0) {
         throw new Error('No se pudo convertir ninguna fila válida.');
       }
-      onDataImported(incidents, importMode === 'append');
-      setSuccessMsg(`¡Éxito! Se cargaron ${incidents.length} registros oficiales en el Dashboard y Mapa de Calor.`);
+      // Sobrescribe y reemplaza por completo cualquier dato anterior
+      onDataImported(incidents, false);
+      setSuccessMsg(`¡Éxito! Se cargaron ${incidents.length} registros y se reemplazó por completo la base de datos anterior.`);
       setTimeout(() => {
         onClose();
         setSuccessMsg(null);
         setStep('input');
         setSelectedFile(null);
         setPastedText('');
-      }, 1200);
+      }, 1000);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al generar registros.';
       setErrorMsg(message);
@@ -361,42 +362,19 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
               </div>
 
               {/* Mode Selection */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setImportMode('replace')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    importMode === 'replace'
-                      ? 'border-blue-600 bg-blue-50/90 shadow-sm ring-1 ring-blue-500'
-                      : 'border-slate-300 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-                    Reemplazar Base Actual
+              {/* Modo de Carga Seguro: Reemplazo Total */}
+              <div className="p-3 rounded-lg border-2 border-emerald-500 bg-emerald-50/90 shadow-sm flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                  <Check className="w-5 h-5" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                    MODO DE CARGA: REEMPLAZO TOTAL Y SOBRESCRITURA LIMPIA
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    El dashboard mostrará únicamente las {rawRows.length} atenciones de tu nuevo archivo Excel.
+                  <div className="text-[11px] text-emerald-800 mt-0.5">
+                    Al confirmar, se sustituirán al 100% todos los datos anteriores en el sistema y en la memoria del navegador. No se mezclarán con bases antiguas y todo el dashboard responderá a tus <strong className="font-bold">{rawRows.length} registros nuevos</strong>.
                   </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setImportMode('append')}
-                  className={`p-3 rounded-lg border-2 text-left transition-all ${
-                    importMode === 'append'
-                      ? 'border-blue-600 bg-blue-50/90 shadow-sm ring-1 ring-blue-500'
-                      : 'border-slate-300 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-                    Sumar a la Base Actual
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Añadirá las {rawRows.length} atenciones a las {currentCount} existentes en memoria.
-                  </div>
-                </button>
+                </div>
               </div>
 
               {/* Table Preview showing all columns */}

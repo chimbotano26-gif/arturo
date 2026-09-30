@@ -103,7 +103,7 @@ export function detect25Columns(headers: string[]): ColumnMapping {
     lugar: matchHeader(headers, ['LUGAR', 'DIRECCION', 'UBICACION']),
     columna1: matchHeader(headers, ['Columna1', 'COLUMNA1', 'COLUMNA 1', 'COL1']),
     integrado: matchHeader(headers, ['INTEGRADO', 'PATRULLAJE INTEGRADO']),
-    refe: matchHeader(headers, ['REFE', 'REFERENCIA', 'REF']),
+    refe: matchHeader(headers, ['REFERENCIA', 'REFE', 'REF']),
     observacion: matchHeader(headers, ['OBSERVACION', 'OBSERVACIONES', 'DETALLE', 'DESCRIPCION']),
     sector: matchHeader(headers, ['SECTOR', 'SUBSECTOR', 'CUADRANTE']),
     zona: matchHeader(headers, ['ZONA', 'ZONA / SUBSECTOR', 'SECTOR GENERAL']),
@@ -113,37 +113,75 @@ export function detect25Columns(headers: string[]): ColumnMapping {
     agente: matchHeader(headers, ['AGENTE', 'EFECTIVO', 'SERENO', 'PERSONAL', 'OPERADOR']),
     servicio: matchHeader(headers, ['SERVICIO', 'TIPO DE SERVICIO', 'MODALIDAD']),
     origen: matchHeader(headers, ['ORIGEN', 'CANAL', 'MEDIO', 'FUENTE']),
-    comisar: matchHeader(headers, ['COMISAR', 'COMISARIA', 'COMISARÍA', 'CIA', 'JURISDICCION']),
-    tipoDePa: matchHeader(headers, ['TIPO DE PA', 'TIPO DE PATRULLAJE', 'PATRULLAJE', 'TIPO PA']),
+    comisar: matchHeader(headers, ['COMISARIAS', 'COMISARIA', 'COMISAR', 'COMISARÍA', 'CIA', 'JURISDICCION']),
+    tipoDePa: matchHeader(headers, ['TIPO DE PATRULLAJE', 'TIPO DE PA', 'PATRULLAJE', 'TIPO PA']),
     mes: matchHeader(headers, ['MES', 'MONTH']),
     dia: matchHeader(headers, ['DIA', 'DÍA', 'DIA SEMANA', 'DAY']),
     fecha2: matchHeader(headers, ['FECHA2', 'FECHA 2', 'FECHA FIN']),
-    horaAlerta: matchHeader(headers, ['HORA DE ALERTA FORMATO', 'HORA DE ALERTA', 'HORA ALERTA', 'ALERTA FORMATO']),
+    horaAlerta: matchHeader(headers, ['HORADE ALERTA FORMATO', 'HORA DE ALERTA FORMATO', 'HORA DE ALERTA', 'HORA ALERTA', 'ALERTA FORMATO']),
     horaLlegada: matchHeader(headers, ['HORA DE LLEGADA FORMATO', 'HORA DE LLEGADA', 'HORA LLEGADA', 'LLEGADA FORMATO']),
-    promedioHoraAten: matchHeader(headers, ['PROMEDIO DE HORA DE ATEN', 'PROMEDIO DE HORA DE ATENCION', 'PROMEDIO ATENCION', 'TIEMPO DE ATENCION', 'PROMEDIO']),
+    promedioHoraAten: matchHeader(headers, ['PROMEDIO DE HORA DE ATENCION', 'PROMEDIO DE HORA DE ATEN', 'PROMEDIO ATENCION', 'TIEMPO DE ATENCION', 'PROMEDIO']),
     turno: matchHeader(headers, ['TURNO', 'SHIFT', 'GUARDIA']),
   };
 }
 
-export async function parseExcelFile(file: File): Promise<ParsedExcelResult> {
-  const buffer = await file.arrayBuffer();
+export function parseExcelArrayBuffer(buffer: ArrayBuffer): ParsedExcelResult {
   const workbook = XLSX.read(buffer, { type: 'array' });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+  if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+    throw new Error('El archivo Excel no contiene hojas de trabajo.');
+  }
+
+  // Find sheet that contains data
+  let selectedSheet = workbook.Sheets[workbook.SheetNames[0]];
+  for (const name of workbook.SheetNames) {
+    const s = workbook.Sheets[name];
+    if (s && s['!ref']) {
+      selectedSheet = s;
+      break;
+    }
+  }
+
+  let jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(selectedSheet, { defval: '' });
 
   if (!jsonData || jsonData.length === 0) {
     throw new Error('El archivo Excel no contiene filas de datos.');
   }
 
-  const headers = Object.keys(jsonData[0]);
-  const detectedMapping = detect25Columns(headers);
+  let headers = Object.keys(jsonData[0] || {});
+  let detectedMapping = detect25Columns(headers);
+
+  // If initial row didn't match at least 3 official columns, scan top rows to locate true header
+  const matchedInitial = Object.values(detectedMapping).filter(Boolean).length;
+  if (matchedInitial < 3) {
+    const rawArrays = XLSX.utils.sheet_to_json<unknown[]>(selectedSheet, { header: 1, defval: '' });
+    for (let r = 0; r < Math.min(rawArrays.length, 8); r++) {
+      const candidateHeaders = (rawArrays[r] || []).map((c) => String(c ?? '').trim());
+      const testMapping = detect25Columns(candidateHeaders);
+      const testCount = Object.values(testMapping).filter(Boolean).length;
+      if (testCount > matchedInitial && testCount >= 2) {
+        jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(selectedSheet, { range: r, defval: '' });
+        headers = Object.keys(jsonData[0] || {});
+        detectedMapping = detect25Columns(headers);
+        break;
+      }
+    }
+  }
 
   return {
     headers,
     rawRows: jsonData,
     detectedMapping,
   };
+}
+
+export function parseAndConvertExcelBuffer(buffer: ArrayBuffer): IncidentRecord[] {
+  const parsed = parseExcelArrayBuffer(buffer);
+  return transformRowsToIncidents(parsed.rawRows, parsed.detectedMapping);
+}
+
+export async function parseExcelFile(file: File): Promise<ParsedExcelResult> {
+  const buffer = await file.arrayBuffer();
+  return parseExcelArrayBuffer(buffer);
 }
 
 export function parsePastedText(text: string): ParsedExcelResult {
@@ -208,6 +246,22 @@ function parseDateCell(val: unknown): { fechaStr: string; mesCalculado: MesType;
     fechaStr = `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
     mesCalculado = MESES_LIST[Math.min(11, Math.max(0, d.m - 1))] || 'SETIEMBRE';
     const dateObj = new Date(d.y, d.m - 1, d.d);
+    const diasMap: DiaSemanaType[] = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+    diaCalculado = diasMap[dateObj.getDay()] || 'LUNES';
+    return { fechaStr, mesCalculado, diaCalculado };
+  }
+
+  // Formato "DD de Mes" (ej. "25 de Mayo", "23 de Setiembre", "05 de Enero")
+  const deMesMatch = str.match(/^(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚñÑ]+)/i);
+  if (deMesMatch) {
+    const d = parseInt(deMesMatch[1], 10);
+    const rawMes = deMesMatch[2];
+    mesCalculado = normalizeMes(rawMes, 'SETIEMBRE');
+    const mesIndex = MESES_LIST.indexOf(mesCalculado);
+    const m = mesIndex >= 0 ? mesIndex + 1 : 9;
+    const y = 2026;
+    fechaStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dateObj = new Date(y, m - 1, d);
     const diasMap: DiaSemanaType[] = ['DOMINGO', 'LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
     diaCalculado = diasMap[dateObj.getDay()] || 'LUNES';
     return { fechaStr, mesCalculado, diaCalculado };

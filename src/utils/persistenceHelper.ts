@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * Persistence helper for Serenazgo Nuevo Chimbote
- * Ensures all incident records, titles, and custom data are persistently saved
- * so the user doesn't need to re-enter data upon returning to the app.
+ * Uses IndexedDB as high-capacity primary storage (>500MB capacity)
+ * to avoid browser localStorage quota limitations (5MB limit),
+ * while keeping lightweight metadata in localStorage.
  */
 
 import { IncidentRecord } from '../types';
@@ -14,6 +15,11 @@ export const STORAGE_KEY_IS_CUSTOM = 'serenazgo_nch_is_custom';
 export const STORAGE_KEY_LAST_SAVED = 'serenazgo_nch_last_saved';
 export const STORAGE_KEY_TITLES = 'serenazgo_dashboard_custom_titles';
 export const STORAGE_KEY_VERSION = 'serenazgo_nch_data_version';
+export const STORAGE_KEY_RECORDS_COUNT = 'serenazgo_nch_records_count';
+
+const IDB_NAME = 'serenazgo_nch_db_v2';
+const IDB_VERSION = 1;
+const STORE_NAME = 'app_data';
 
 export interface SaveResult {
   success: boolean;
@@ -32,7 +38,7 @@ export interface BackupPayload {
 }
 
 /**
- * Format current timestamp for user-facing display (e.g., "15:42 (28/09/2026)")
+ * Format current timestamp for user-facing display (e.g., "15:42 • 28/09/2026")
  */
 export function formatSaveTimestamp(date: Date = new Date()): string {
   const time = date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -41,21 +47,141 @@ export function formatSaveTimestamp(date: Date = new Date()): string {
 }
 
 /**
- * Persists all records and configuration to localStorage
+ * Open or initialize the IndexedDB database
  */
-export function saveAllDataToStorage(
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      reject(new Error('IndexedDB no está soportado en este navegador.'));
+      return;
+    }
+    const request = window.indexedDB.open(IDB_NAME, IDB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('No se pudo abrir la base de datos IndexedDB.'));
+  });
+}
+
+/**
+ * Put an item into IndexedDB
+ */
+export async function idbSet<T>(key: string, value: T): Promise<void> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(value, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error || new Error(`Error guardando ${key} en IndexedDB`));
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Get an item from IndexedDB
+ */
+export async function idbGet<T>(key: string): Promise<T | null> {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result !== undefined ? req.result : null);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  } catch (e) {
+    console.warn('Error leyendo desde IndexedDB:', e);
+    return null;
+  }
+}
+
+/**
+ * Delete an item from IndexedDB
+ */
+export async function idbDelete(key: string): Promise<void> {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  } catch {
+    // Ignore error
+  }
+}
+
+/**
+ * Clear all items in IndexedDB
+ */
+export async function idbClear(): Promise<void> {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  } catch {
+    // Ignore error
+  }
+}
+
+/**
+ * Persists all records and configuration to IndexedDB (preventing localStorage quota overflow)
+ * and saves lightweight metadata in localStorage.
+ */
+export async function saveAllDataToStorage(
   records: IncidentRecord[],
   titles?: any
-): SaveResult {
+): Promise<SaveResult> {
   const timestamp = formatSaveTimestamp();
   try {
-    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
-    localStorage.setItem(STORAGE_KEY_IS_CUSTOM, 'true');
-    localStorage.setItem(STORAGE_KEY_LAST_SAVED, timestamp);
-    localStorage.setItem(STORAGE_KEY_VERSION, '2026_saved');
+    // 1. Save records array directly in IndexedDB (handles hundreds of MBs seamlessly)
+    await idbSet('records', records);
+    await idbSet('metadata', {
+      lastSaved: timestamp,
+      isCustom: true,
+      recordsCount: records.length,
+      version: '2026_saved',
+    });
 
     if (titles) {
-      localStorage.setItem(STORAGE_KEY_TITLES, JSON.stringify(titles));
+      await idbSet('titles', titles);
+    }
+
+    // 2. Clear any old bloated records string from localStorage to permanently free quota!
+    try {
+      localStorage.removeItem(STORAGE_KEY_RECORDS);
+    } catch {
+      // Ignore
+    }
+
+    // 3. Save only lightweight metadata in localStorage (few bytes each)
+    try {
+      localStorage.setItem(STORAGE_KEY_IS_CUSTOM, 'true');
+      localStorage.setItem(STORAGE_KEY_LAST_SAVED, timestamp);
+      localStorage.setItem(STORAGE_KEY_VERSION, '2026_saved');
+      localStorage.setItem(STORAGE_KEY_RECORDS_COUNT, String(records.length));
+
+      if (titles) {
+        localStorage.setItem(STORAGE_KEY_TITLES, JSON.stringify(titles));
+      }
+    } catch (lsErr) {
+      console.warn('Advertencia al escribir metadatos en localStorage (datos guardados en IndexedDB):', lsErr);
     }
 
     return {
@@ -64,8 +190,8 @@ export function saveAllDataToStorage(
       count: records.length,
     };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error desconocido al guardar en memoria local';
-    console.error('Error al guardar datos:', error);
+    const message = error instanceof Error ? error.message : 'Error al guardar datos en almacenamiento persistente.';
+    console.error('Error al guardar datos en IndexedDB:', error);
     return {
       success: false,
       timestamp,
@@ -76,30 +202,79 @@ export function saveAllDataToStorage(
 }
 
 /**
- * Loads records from localStorage if previously saved
+ * Synchronous metadata loader (for immediate initial UI render before IDB responds)
  */
-export function loadSavedRecordsFromStorage(): {
+export function loadSavedRecordsSync(): {
+  lastSaved: string | null;
+  isCustom: boolean;
+  recordsCount: number;
+} {
+  try {
+    const lastSaved = localStorage.getItem(STORAGE_KEY_LAST_SAVED);
+    const isCustom = localStorage.getItem(STORAGE_KEY_IS_CUSTOM) === 'true';
+    const countStr = localStorage.getItem(STORAGE_KEY_RECORDS_COUNT);
+    const recordsCount = countStr ? parseInt(countStr, 10) : 0;
+    return { lastSaved, isCustom, recordsCount };
+  } catch {
+    return { lastSaved: null, isCustom: false, recordsCount: 0 };
+  }
+}
+
+/**
+ * Loads records from IndexedDB (or migrates from old localStorage if present)
+ */
+export async function loadSavedRecordsFromStorage(): Promise<{
   records: IncidentRecord[] | null;
   lastSaved: string | null;
   isCustom: boolean;
-} {
+}> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY_RECORDS);
+    // 1. Check IndexedDB first (Primary robust storage)
+    const idbRecords = await idbGet<IncidentRecord[]>('records');
+    const idbMeta = await idbGet<{ lastSaved: string; isCustom: boolean; recordsCount: number }>('metadata');
+
+    if (idbRecords && Array.isArray(idbRecords) && idbRecords.length > 0) {
+      const lastSaved = idbMeta?.lastSaved || localStorage.getItem(STORAGE_KEY_LAST_SAVED);
+      const isCustom = idbMeta?.isCustom ?? (localStorage.getItem(STORAGE_KEY_IS_CUSTOM) === 'true');
+      return {
+        records: idbRecords,
+        lastSaved: lastSaved || null,
+        isCustom: !!isCustom,
+      };
+    }
+
+    // 2. Migration: Check if user has legacy records stored in localStorage
+    const savedInLs = localStorage.getItem(STORAGE_KEY_RECORDS);
     const lastSaved = localStorage.getItem(STORAGE_KEY_LAST_SAVED);
     const isCustom = localStorage.getItem(STORAGE_KEY_IS_CUSTOM) === 'true';
 
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return {
-          records: parsed,
-          lastSaved,
-          isCustom,
-        };
+    if (savedInLs) {
+      try {
+        const parsed = JSON.parse(savedInLs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Migrate to IndexedDB for safety
+          await idbSet('records', parsed);
+          await idbSet('metadata', {
+            lastSaved: lastSaved || formatSaveTimestamp(),
+            isCustom,
+            recordsCount: parsed.length,
+          });
+          // Clean up legacy localStorage to free up the 5MB quota immediately
+          localStorage.removeItem(STORAGE_KEY_RECORDS);
+
+          return {
+            records: parsed,
+            lastSaved,
+            isCustom,
+          };
+        }
+      } catch (parseErr) {
+        console.warn('Error al deserializar registros legados de localStorage:', parseErr);
+        localStorage.removeItem(STORAGE_KEY_RECORDS);
       }
     }
   } catch (e) {
-    console.warn('No se pudieron recuperar datos guardados:', e);
+    console.warn('No se pudieron recuperar datos guardados de IndexedDB:', e);
   }
 
   return {
@@ -107,6 +282,27 @@ export function loadSavedRecordsFromStorage(): {
     lastSaved: null,
     isCustom: false,
   };
+}
+
+/**
+ * Clears all persistent records from both IndexedDB and localStorage
+ */
+export async function clearAllSavedData(): Promise<void> {
+  try {
+    await idbClear();
+  } catch (e) {
+    console.warn('Error limpiando IndexedDB:', e);
+  }
+
+  try {
+    localStorage.removeItem(STORAGE_KEY_RECORDS);
+    localStorage.removeItem(STORAGE_KEY_IS_CUSTOM);
+    localStorage.removeItem(STORAGE_KEY_LAST_SAVED);
+    localStorage.removeItem(STORAGE_KEY_RECORDS_COUNT);
+    localStorage.removeItem(STORAGE_KEY_VERSION);
+  } catch {
+    // Ignore error
+  }
 }
 
 /**

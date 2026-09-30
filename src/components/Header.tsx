@@ -12,9 +12,6 @@ import {
   Lock,
   Unlock,
   LogOut,
-  Save,
-  Upload,
-  Database,
 } from 'lucide-react';
 import { useAuth } from '../utils/authContext';
 import { SerenazgoLogo } from './SerenazgoLogo';
@@ -23,21 +20,11 @@ import { EditableText } from './EditableText';
 interface HeaderProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
-  onSaveChanges?: () => void;
-  onOpenExcelModal?: () => void;
-  hasUnsavedChanges?: boolean;
-  lastSavedAt?: string | null;
-  justSaved?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
-  onSaveChanges,
-  onOpenExcelModal,
-  hasUnsavedChanges = false,
-  lastSavedAt = null,
-  justSaved = false,
 }) => {
   const { isAdmin, adminEmail, openAuthModal, logoutToViewer } = useAuth();
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -142,64 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* 2. BOTÓN PRINCIPAL: SUBIR EXCEL / BASE DE DATOS */}
-            {onOpenExcelModal && (
-              <button
-                type="button"
-                id="btn-header-upload-excel"
-                onClick={onOpenExcelModal}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-200 border shadow-md active:scale-95 group shrink-0 bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 hover:from-blue-600 hover:to-cyan-600 text-white border-cyan-400/80 shadow-cyan-950/40"
-                title="Subir archivo Excel (.xlsx / .xls) para alimentar y actualizar la Base de Datos oficial"
-              >
-                <Upload className="w-4 h-4 text-cyan-200 group-hover:scale-110 transition-transform" />
-                <div className="flex flex-col text-left leading-none">
-                  <span className="text-[11px] font-black tracking-wide">SUBIR EXCEL</span>
-                  <span className="text-[8px] font-mono text-cyan-200 font-bold">Base de Datos</span>
-                </div>
-              </button>
-            )}
-
-            {/* 3. BOTÓN PRINCIPAL: GUARDAR CAMBIOS */}
-            {onSaveChanges && (
-              <button
-                type="button"
-                id="btn-header-save-changes"
-                onClick={onSaveChanges}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all duration-200 border shadow-md active:scale-95 group shrink-0 ${
-                  hasUnsavedChanges
-                    ? 'bg-gradient-to-r from-amber-600 via-amber-700 to-orange-600 text-white border-amber-300 ring-2 ring-amber-400/50 hover:brightness-110 shadow-amber-900/40'
-                    : justSaved
-                    ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white border-emerald-300 ring-1 ring-emerald-400/60 shadow-emerald-900/40'
-                    : 'bg-gradient-to-r from-emerald-800 to-teal-900 hover:from-emerald-700 hover:to-teal-800 text-emerald-100 hover:text-white border-emerald-500/70 hover:border-emerald-400'
-                }`}
-                title="Guardar todos los registros y cambios en el sistema para que no sea necesario volver a meter datos al entrar al aplicativo"
-              >
-                <Save
-                  className={`w-4 h-4 ${
-                    hasUnsavedChanges
-                      ? 'text-amber-100 animate-bounce'
-                      : 'text-emerald-300 group-hover:scale-110 transition-transform'
-                  }`}
-                />
-                <div className="flex flex-col text-left leading-none">
-                  <span className="text-[11px] font-black tracking-wide flex items-center gap-1">
-                    <span>{justSaved ? '¡CAMBIOS GUARDADOS!' : 'GUARDAR CAMBIOS'}</span>
-                    {hasUnsavedChanges && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-ping" />
-                    )}
-                  </span>
-                  <span className="text-[8px] font-mono text-emerald-200/90 font-bold">
-                    {hasUnsavedChanges
-                      ? '● Cambios sin guardar'
-                      : lastSavedAt
-                      ? `Guardado: ${lastSavedAt.split('•')[0].trim()}`
-                      : 'Permanente en navegador'}
-                  </span>
-                </div>
-              </button>
-            )}
-
-            {/* 4. Reloj Oficial Central */}
+            {/* 2. Reloj Oficial Central */}
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-[#0b1d38]/90 rounded-lg border border-cyan-900/60 text-xs shrink-0">
               <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               <div className="flex flex-col text-right leading-none">

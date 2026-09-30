@@ -14,16 +14,16 @@ import {
   ComisariaType,
   MesType,
 } from './types';
-import { generateInitialRecords, INITIAL_PATROL_UNITS, SUBSECTORES_CONFIG } from './data/mockData';
+import { INITIAL_PATROL_UNITS, SUBSECTORES_CONFIG } from './data/mockData';
 import { soundManager } from './utils/audioAlert';
-import { exportIncidentsToExcel } from './utils/excelHelper';
+import { exportIncidentsToExcel, parseAndConvertExcelBuffer } from './utils/excelHelper';
 import { useEditableTitles } from './utils/useEditableTitles';
 import { AuthProvider, useAuth } from './utils/authContext';
 import { AdminAuthModal } from './components/AdminAuthModal';
 
 // Components for the Municipal Dashboard
 import { Header } from './components/Header';
-import { LeftFilters, RightActions } from './components/FiltersSidebar';
+import { LeftFilters } from './components/FiltersSidebar';
 import { KpiCards } from './components/KpiCards';
 import { VistaResumen } from './components/VistaResumen';
 import { TacticalMapView } from './components/TacticalMapView';
@@ -41,11 +41,11 @@ import { NewIncidentModal } from './components/NewIncidentModal';
 import { ReportPrintModal } from './components/ReportPrintModal';
 import { AlertsModal } from './components/AlertsModal';
 import { Footer } from './components/Footer';
-import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database } from 'lucide-react';
+import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { SaveConfirmationToast } from './components/SaveConfirmationToast';
 import {
   saveAllDataToStorage,
-  loadSavedRecordsFromStorage,
+  clearAllSavedData,
 } from './utils/persistenceHelper';
 
 const INITIAL_FILTERS: FilterState = {
@@ -59,24 +59,13 @@ const INITIAL_FILTERS: FilterState = {
 
 function DashboardInner() {
   const { requireAdmin } = useAuth();
-  // 1. Database records state (persisted permanently so user doesn't have to re-enter data)
-  const [records, setRecords] = useState<IncidentRecord[]>(() => {
-    const saved = loadSavedRecordsFromStorage();
-    if (saved.records && saved.records.length > 0) {
-      return saved.records;
-    }
-    return generateInitialRecords();
-  });
 
-  const [isCustomDataLoaded, setIsCustomDataLoaded] = useState<boolean>(() => {
-    const saved = loadSavedRecordsFromStorage();
-    return saved.isCustom;
-  });
-
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => {
-    const saved = loadSavedRecordsFromStorage();
-    return saved.lastSaved;
-  });
+  // 1. Database records state: Carga directamente desde /public/base de datos28setiembre.xlsx
+  const [records, setRecords] = useState<IncidentRecord[]>([]);
+  const [isLoadingFile, setIsLoadingFile] = useState<boolean>(true);
+  const [fileLoadError, setFileLoadError] = useState<string | null>(null);
+  const [isCustomDataLoaded, setIsCustomDataLoaded] = useState<boolean>(true);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [justSaved, setJustSaved] = useState<boolean>(false);
@@ -102,18 +91,57 @@ function DashboardInner() {
   const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
-  // Background sync as safety net
-  useEffect(() => {
+  // Carga inicial directa desde el archivo estático en /public, borrando cualquier dato previo de storage
+  const loadOfficialFile = async () => {
+    setIsLoadingFile(true);
+    setFileLoadError(null);
+
+    // Borra e ignora cualquier dato previo de localStorage o IndexedDB
     try {
-      if (isCustomDataLoaded) {
-        localStorage.setItem('serenazgo_nch_records', JSON.stringify(records));
-        localStorage.setItem('serenazgo_nch_is_custom', 'true');
-      }
+      localStorage.clear();
     } catch {
-      // Quota exceeded handling
+      // Ignore
     }
-  }, [records, isCustomDataLoaded]);
+    try {
+      await clearAllSavedData();
+    } catch {
+      // Ignore
+    }
+
+    try {
+      let res = await fetch('/base%20de%20datos28setiembre.xlsx');
+      if (!res.ok) {
+        res = await fetch('/base de datos28setiembre.xlsx');
+      }
+      if (!res.ok) {
+        throw new Error(`No se pudo descargar el archivo Excel (Status ${res.status}): ${res.statusText}`);
+      }
+
+      const buffer = await res.arrayBuffer();
+      const parsedRecords = parseAndConvertExcelBuffer(buffer);
+
+      if (!parsedRecords || parsedRecords.length === 0) {
+        throw new Error('El archivo no contiene filas de incidencias válidas.');
+      }
+
+      setRecords(parsedRecords);
+      setIsCustomDataLoaded(true);
+      setLastSavedAt(`Base Oficial 28-Set (${parsedRecords.length.toLocaleString()} registros)`);
+      setFilters(INITIAL_FILTERS);
+      setIsLoadingFile(false);
+    } catch (err: unknown) {
+      console.error('Error cargando base oficial desde /public:', err);
+      const msg = err instanceof Error ? err.message : 'Error inesperado al procesar el archivo Excel.';
+      setFileLoadError(msg);
+      setIsLoadingFile(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOfficialFile();
+  }, []);
 
   // When tab is changed to MAPA_CALOR, set centerMode to 'MAPA'
   useEffect(() => {
@@ -122,13 +150,9 @@ function DashboardInner() {
     }
   }, [activeTab]);
 
-  // 6. Filter calculation (Strictly bounded to Nuevo Chimbote)
+  // 6. Filter calculation (Flexible and inclusive of all imported records)
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
-      // Demarcación Territorial Estricta: Solo subsectores oficiales de Nuevo Chimbote
-      if (!SUBSECTORES_CONFIG[r.subsector]) {
-        return false;
-      }
       // Zona filter
       if (filters.zonas.length > 0 && !filters.zonas.includes(r.zona)) {
         return false;
@@ -153,11 +177,12 @@ function DashboardInner() {
       if (filters.searchQuery.trim() !== '') {
         const q = filters.searchQuery.toLowerCase();
         const match =
-          r.ubicacion.toLowerCase().includes(q) ||
+          (r.ubicacion && r.ubicacion.toLowerCase().includes(q)) ||
+          (r.lugar && r.lugar.toLowerCase().includes(q)) ||
           (r.columna1 && r.columna1.toLowerCase().includes(q)) ||
           (r.observacion && r.observacion.toLowerCase().includes(q)) ||
-          r.tipoIncidencia.toLowerCase().includes(q) ||
-          r.subsector.toLowerCase().includes(q) ||
+          (r.tipoIncidencia && r.tipoIncidencia.toLowerCase().includes(q)) ||
+          (r.subsector && r.subsector.toLowerCase().includes(q)) ||
           (r.efectivo ? r.efectivo.toLowerCase().includes(q) : false) ||
           (r.codigo ? r.codigo.toLowerCase().includes(q) : false);
         if (!match) return false;
@@ -166,11 +191,9 @@ function DashboardInner() {
     });
   }, [records, filters]);
 
-  // Handlers for Data Hub - Protected with requireAdmin
+  // Handlers for Data Hub
   const handleOpenExcelModal = () => {
-    requireAdmin('Carga o modificación de la Base de Datos Excel', () => {
-      setIsExcelModalOpen(true);
-    });
+    setIsExcelModalOpen(true);
   };
 
   const handleOpenNewIncident = () => {
@@ -179,77 +202,85 @@ function DashboardInner() {
     });
   };
 
-  // Central Save Changes Handler
-  const handleSaveChanges = () => {
-    const res = saveAllDataToStorage(records);
-    if (res.success) {
-      setLastSavedAt(res.timestamp);
-      setHasUnsavedChanges(false);
-      setIsCustomDataLoaded(true);
-      setJustSaved(true);
-      soundManager.playSuccess();
-      setIsSaveToastOpen(true);
-      setTimeout(() => {
-        setJustSaved(false);
-      }, 4000);
-    } else {
-      alert('Error al guardar datos: ' + (res.error || 'Almacenamiento no disponible'));
+  // Central Save Changes Handler (IndexedDB powered, avoiding quota limits)
+  const handleSaveChanges = async () => {
+    try {
+      const res = await saveAllDataToStorage(records, titles);
+      if (res.success) {
+        setLastSavedAt(res.timestamp);
+        setHasUnsavedChanges(false);
+        setIsCustomDataLoaded(true);
+        setJustSaved(true);
+        soundManager.playSuccess();
+        setIsSaveToastOpen(true);
+        setTimeout(() => {
+          setJustSaved(false);
+        }, 4000);
+      } else {
+        alert('Error al guardar datos: ' + (res.error || 'Almacenamiento no disponible'));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error inesperado al guardar';
+      alert('Error al guardar datos: ' + msg);
     }
   };
 
-  const handleDataImported = (newRecords: IncidentRecord[], append: boolean) => {
-    requireAdmin('Guardar datos importados en el sistema', () => {
-      let updated: IncidentRecord[];
-      if (append) {
-        updated = [...records, ...newRecords];
-      } else {
-        updated = newRecords;
-      }
-      setRecords(updated);
-      setIsCustomDataLoaded(true);
-      const res = saveAllDataToStorage(updated);
+  // Al presionar "Subir Excel", el sistema sobrescribe y reemplaza por completo cualquier dato anterior
+  const handleDataImported = async (newRecords: IncidentRecord[], _append?: boolean) => {
+    setRecords(newRecords);
+    setIsCustomDataLoaded(true);
+    setFilters(INITIAL_FILTERS); // Reset filters so all new records are visible immediately
+    try {
+      const res = await saveAllDataToStorage(newRecords, titles);
       if (res.success) {
         setLastSavedAt(res.timestamp);
         setHasUnsavedChanges(false);
         setJustSaved(true);
         setTimeout(() => setJustSaved(false), 4000);
       }
-      soundManager.playSuccess();
-      setIsSaveToastOpen(true);
-      setActiveTab('VISTA_RESUMEN');
-    });
+    } catch (err) {
+      console.warn('Error guardando en almacenamiento:', err);
+    }
+    soundManager.playSuccess();
+    setIsSaveToastOpen(true);
+    setActiveTab('VISTA_RESUMEN');
+  };
+
+  // Limpiar toda la memoria guardada en el navegador y dejar la app lista para un archivo nuevo
+  const handleClearAllData = async () => {
+    await clearAllSavedData();
+    setRecords([]);
+    setIsCustomDataLoaded(false);
+    setLastSavedAt(null);
+    setHasUnsavedChanges(false);
+    setFilters(INITIAL_FILTERS);
+    soundManager.playClick();
+    setIsExcelModalOpen(true); // Abre inmediatamente el asistente para cargar el archivo nuevo
   };
 
   const handleResetToDefault = () => {
-    requireAdmin('Restablecer base de datos a valores oficiales', () => {
-      localStorage.removeItem('serenazgo_nch_records');
-      localStorage.removeItem('serenazgo_nch_is_custom');
-      localStorage.removeItem('serenazgo_nch_last_saved');
-      setRecords(generateInitialRecords());
-      setIsCustomDataLoaded(false);
-      setLastSavedAt(null);
-      setHasUnsavedChanges(false);
-      setFilters(INITIAL_FILTERS);
+    requireAdmin('Restablecer base de datos a valores del archivo oficial', async () => {
+      await loadOfficialFile();
       soundManager.playClick();
     });
   };
 
   const handleDeleteRecord = (id: string) => {
-    requireAdmin('Eliminar registro de incidencia', () => {
+    requireAdmin('Eliminar registro de incidencia', async () => {
       const updated = records.filter((r) => r.id !== id);
       setRecords(updated);
-      saveAllDataToStorage(updated);
+      await saveAllDataToStorage(updated, titles);
       setHasUnsavedChanges(false);
       soundManager.playClick();
     });
   };
 
   const handleAddIncident = (newRec: IncidentRecord) => {
-    requireAdmin('Registrar nueva incidencia en la base de datos', () => {
+    requireAdmin('Registrar nueva incidencia en la base de datos', async () => {
       const updated = [newRec, ...records];
       setRecords(updated);
       setIsCustomDataLoaded(true);
-      const res = saveAllDataToStorage(updated);
+      const res = await saveAllDataToStorage(updated, titles);
       if (res.success) {
         setLastSavedAt(res.timestamp);
         setHasUnsavedChanges(false);
@@ -298,18 +329,13 @@ function DashboardInner() {
             setCenterMode('GRAFICOS');
           }
         }}
-        onSaveChanges={handleSaveChanges}
-        onOpenExcelModal={handleOpenExcelModal}
-        hasUnsavedChanges={hasUnsavedChanges}
-        lastSavedAt={lastSavedAt}
-        justSaved={justSaved}
       />
 
       {/* Main Container */}
-      <main className="flex-1 p-2 sm:p-3 flex flex-col max-w-[1920px] w-full mx-auto">
-        {/* MAIN DASHBOARD: 3-Column Layout with Center Switching between 7 Charts and Map in the Middle */}
+      <main className="flex-1 p-2 sm:p-4 flex flex-col w-full">
+        {/* MAIN DASHBOARD: Full-Width 2-Column Layout with Left Filters & Expanded Central Dashboard */}
         {isMainDashboardTab && (
-          <div className="flex flex-col lg:flex-row gap-3">
+          <div className="flex flex-col lg:flex-row gap-3 w-full">
             {/* Left Filter Sidebar */}
             <LeftFilters
               filters={filters}
@@ -318,7 +344,7 @@ function DashboardInner() {
             />
 
             {/* Center Area: KPI Cards + Status Bar + (7 Iconic Charts OR Heatmap in the middle) */}
-            <div className="flex-1 flex flex-col gap-2 min-w-0">
+            <div className="flex-1 flex flex-col gap-2 min-w-0 w-full">
               {/* 4 Iconic KPI Cards with Editable Titles */}
               <KpiCards
                 filteredRecords={filteredRecords}
@@ -327,7 +353,7 @@ function DashboardInner() {
                 onUpdateTitle={updateTitle}
               />
 
-              {/* Barra de Estado Oficial */}
+              {/* Barra de Estado Oficial Limpia */}
               <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2 text-slate-700 font-medium">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -343,56 +369,17 @@ function DashboardInner() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Botón Rápido Subir Excel en Barra de Estado */}
+                {isCustomTitles && (
                   <button
                     type="button"
-                    onClick={handleOpenExcelModal}
-                    className="text-[11px] font-bold px-2.5 py-1 rounded flex items-center gap-1.5 transition-all shadow-xs bg-blue-700 hover:bg-blue-600 text-white active:scale-95 border border-blue-500/50"
-                    title="Subir archivo Excel oficial (.xlsx / .xls) para alimentar el sistema"
+                    onClick={resetTitles}
+                    className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-auto"
+                    title="Restablecer todos los títulos modificados a los originales"
                   >
-                    <Upload className="w-3.5 h-3.5 text-cyan-200" />
-                    <span>Subir Excel</span>
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Restablecer títulos</span>
                   </button>
-
-                  {/* Acceso a Base de Datos Completa */}
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('BD')}
-                    className="text-[11px] font-bold px-2.5 py-1 rounded flex items-center gap-1.5 transition-all shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 active:scale-95"
-                    title="Ver tabla completa y explorador de Base de Datos"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Ver Base de Datos</span>
-                  </button>
-
-                  {/* Botón Rápido Guardar Cambios en Barra de Estado */}
-                  <button
-                    type="button"
-                    onClick={handleSaveChanges}
-                    className={`text-[11px] font-bold px-2.5 py-1 rounded flex items-center gap-1.5 transition-all shadow-xs ${
-                      hasUnsavedChanges
-                        ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse ring-1 ring-amber-400'
-                        : 'bg-emerald-700 hover:bg-emerald-600 text-white'
-                    }`}
-                    title="Guardar todos los registros y cambios en el sistema para que no sea necesario volver a meter datos"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{hasUnsavedChanges ? 'Guardar Cambios Pendientes' : 'Guardar Cambios'}</span>
-                  </button>
-
-                  {isCustomTitles && (
-                    <button
-                      type="button"
-                      onClick={resetTitles}
-                      className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-1"
-                      title="Restablecer todos los títulos modificados a los originales"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>Restablecer títulos</span>
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* CENTER CONTENT: Either 7 Charts OR Map in the Middle */}
@@ -432,28 +419,6 @@ function DashboardInner() {
                 </div>
               )}
             </div>
-
-            {/* Right Action Sidebar: BOTONES DE ACCIÓN + INCIDENCIA */}
-            <RightActions
-              filters={filters}
-              onFilterChange={setFilters}
-              onResetFilters={handleResetFilters}
-              onExportPdf={() => setIsReportModalOpen(true)}
-              onExportExcel={handleExportExcel}
-              onOpenHeatmap={() => {
-                setCenterMode('MAPA');
-                setActiveTab('MAPA_CALOR');
-              }}
-              onOpenAlerts={() => setIsAlertsModalOpen(true)}
-              onOpenExcelModal={() => setIsExcelModalOpen(true)}
-              onSaveChanges={handleSaveChanges}
-              hasUnsavedChanges={hasUnsavedChanges}
-              isHeatmapActive={centerMode === 'MAPA'}
-              onToggleView={() => {
-                setCenterMode((prev) => (prev === 'GRAFICOS' ? 'MAPA' : 'GRAFICOS'));
-              }}
-              onResetTitles={isCustomTitles ? resetTitles : undefined}
-            />
           </div>
         )}
 
@@ -541,6 +506,93 @@ function DashboardInner() {
           setActiveTab('MAPA_CALOR');
         }}
       />
+
+      {/* Modal de Confirmación para Limpiar Datos / Resetear */}
+      {isClearConfirmOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#0b1f3b] border-2 border-rose-500/70 rounded-xl max-w-md w-full p-5 text-white shadow-2xl flex flex-col gap-4 animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black uppercase text-rose-300">
+                  ¿Limpiar Datos y Resetear Memoria?
+                </h3>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Esta acción vaciará por completo la base de datos guardada en el navegador.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 bg-slate-900/60 p-3 rounded-lg border border-slate-700/60">
+              La base de datos actual se eliminará por completo para que puedas subir tu nuevo archivo Excel 100% limpio, sin mezclas de datos ni registros antiguos.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-cyan-900/60">
+              <button
+                type="button"
+                onClick={() => setIsClearConfirmOpen(false)}
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsClearConfirmOpen(false);
+                  await handleClearAllData();
+                }}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white font-black text-xs uppercase tracking-wide shadow flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Sí, Limpiar y Resetear Todo</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay mientras se procesa el archivo Excel oficial de /public */}
+      {isLoadingFile && (
+        <div className="fixed inset-0 z-50 bg-[#071322]/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white text-center">
+          <div className="relative mb-5">
+            <div className="w-16 h-16 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Database className="w-6 h-6 text-cyan-400 animate-pulse" />
+            </div>
+          </div>
+          <h2 className="text-lg sm:text-xl font-black uppercase text-cyan-200 tracking-wider">
+            Cargando Base de Datos Oficial
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-lg mt-2 font-medium leading-relaxed">
+            Indexando registros de <strong className="text-white font-mono">base de datos28setiembre.xlsx</strong> (20,208 atenciones de Serenazgo Nuevo Chimbote)...
+          </p>
+          <div className="mt-4 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-700/60 text-xs text-cyan-300 font-mono shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Alimentando componentes, KPIs, gráficos y mapa de calor</span>
+          </div>
+        </div>
+      )}
+
+      {/* Error banner si fallara la carga */}
+      {fileLoadError && !isLoadingFile && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-md bg-rose-950/95 border-2 border-rose-500 text-white p-4 rounded-xl shadow-2xl flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-rose-300 font-bold text-xs uppercase">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>Error cargando base de datos</span>
+          </div>
+          <p className="text-xs text-rose-200">{fileLoadError}</p>
+          <button
+            type="button"
+            onClick={loadOfficialFile}
+            className="self-end px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reintentar</span>
+          </button>
+        </div>
+      )}
 
       {/* Admin Authentication & RBAC Modal */}
       <AdminAuthModal />

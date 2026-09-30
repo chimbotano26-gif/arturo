@@ -2,22 +2,11 @@ import React, { useState } from 'react';
 import {
   Filter,
   FilterX,
-  ArrowUpDown,
-  Download,
-  RotateCcw,
-  Flame,
-  BellRing,
-  FileSpreadsheet,
-  Check,
   ListChecks,
   CheckSquare,
   Square,
-  CheckCheck,
-  Lock,
-  Save,
-  Upload,
 } from 'lucide-react';
-import { useAuth } from '../utils/authContext';
+
 import {
   FilterState,
   ZonaType,
@@ -50,14 +39,18 @@ export const LeftFilters: React.FC<LeftFiltersProps> = ({
     comisaria: boolean;
     turno: boolean;
     mes: boolean;
+    incidencia: boolean;
   }>({
     zona: true,
     comisaria: true,
     turno: true,
     mes: true,
+    incidencia: true,
   });
 
-  const toggleMultiSelectMode = (key: 'zona' | 'comisaria' | 'turno' | 'mes') => {
+  const [incFilterSearch, setIncFilterSearch] = useState('');
+
+  const toggleMultiSelectMode = (key: 'zona' | 'comisaria' | 'turno' | 'mes' | 'incidencia') => {
     setMultiSelect((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -154,6 +147,33 @@ export const LeftFilters: React.FC<LeftFiltersProps> = ({
     onFilterChange({ ...filters, meses: [] });
   };
 
+  // INCIDENCIA Handlers
+  const toggleIncidencia = (inc: string) => {
+    if (multiSelect.incidencia) {
+      const exists = filters.incidencias.includes(inc);
+      const updated = exists ? filters.incidencias.filter((i) => i !== inc) : [...filters.incidencias, inc];
+      onFilterChange({ ...filters, incidencias: updated });
+    } else {
+      if (filters.incidencias.length === 1 && filters.incidencias[0] === inc) {
+        onFilterChange({ ...filters, incidencias: [] });
+      } else {
+        onFilterChange({ ...filters, incidencias: [inc] });
+      }
+    }
+  };
+
+  const selectAllIncidencias = () => {
+    onFilterChange({ ...filters, incidencias: [...INCIDENCIAS_LIST] });
+  };
+
+  const clearIncidencias = () => {
+    onFilterChange({ ...filters, incidencias: [] });
+  };
+
+  const filteredIncidenciasList = INCIDENCIAS_LIST.filter((inc) =>
+    inc.toLowerCase().includes(incFilterSearch.toLowerCase())
+  );
+
   // Master Select All / Clear All
   const handleSelectAllFilters = () => {
     onFilterChange({
@@ -167,7 +187,7 @@ export const LeftFilters: React.FC<LeftFiltersProps> = ({
   };
 
   return (
-    <aside className="w-full lg:w-48 xl:w-56 shrink-0 flex flex-col gap-2.5">
+    <aside className="w-full lg:w-52 xl:w-60 shrink-0 flex flex-col gap-2.5">
       {/* Master Slicer Header Controls (Excel BI Slicer Bar) */}
       <div className="bg-[#0b1f3a] text-white rounded-lg border-2 border-cyan-800 shadow-md p-2 flex flex-col gap-1.5">
         <div className="flex items-center justify-between text-[11px] font-black uppercase text-cyan-200 tracking-wider">
@@ -443,7 +463,7 @@ export const LeftFilters: React.FC<LeftFiltersProps> = ({
           </div>
         </div>
 
-        <div className="p-1.5 max-h-52 overflow-y-auto flex flex-col gap-1">
+        <div className="p-1.5 max-h-48 overflow-y-auto flex flex-col gap-1">
           {MESES_LIST.map((mes) => {
             const isSelected = filters.meses.includes(mes);
             return (
@@ -470,148 +490,9 @@ export const LeftFilters: React.FC<LeftFiltersProps> = ({
           })}
         </div>
       </div>
-    </aside>
-  );
-};
 
-interface RightActionsProps {
-  filters: FilterState;
-  onFilterChange: (newFilters: FilterState) => void;
-  onResetFilters: () => void;
-  onExportPdf: () => void;
-  onExportExcel: () => void;
-  onOpenHeatmap: () => void;
-  onOpenAlerts: () => void;
-  onOpenExcelModal?: () => void;
-  onSaveChanges?: () => void;
-  hasUnsavedChanges?: boolean;
-  isHeatmapActive?: boolean;
-  onToggleView?: () => void;
-  onResetTitles?: () => void;
-}
-
-export const RightActions: React.FC<RightActionsProps> = ({
-  filters,
-  onFilterChange,
-  onResetFilters,
-  onExportPdf,
-  onExportExcel,
-  onOpenHeatmap,
-  onOpenAlerts,
-  onOpenExcelModal,
-  onSaveChanges,
-  hasUnsavedChanges = false,
-  isHeatmapActive = false,
-  onToggleView,
-  onResetTitles,
-}) => {
-  const { isAdmin, requireAdmin } = useAuth();
-  const [multiSelectInc, setMultiSelectInc] = useState(true);
-  const [incFilterSearch, setIncFilterSearch] = useState('');
-
-  const toggleIncidencia = (inc: string) => {
-    if (multiSelectInc) {
-      const exists = filters.incidencias.includes(inc);
-      const updated = exists ? filters.incidencias.filter((i) => i !== inc) : [...filters.incidencias, inc];
-      onFilterChange({ ...filters, incidencias: updated });
-    } else {
-      if (filters.incidencias.length === 1 && filters.incidencias[0] === inc) {
-        onFilterChange({ ...filters, incidencias: [] });
-      } else {
-        onFilterChange({ ...filters, incidencias: [inc] });
-      }
-    }
-  };
-
-  const selectAllIncidencias = () => {
-    onFilterChange({ ...filters, incidencias: [...INCIDENCIAS_LIST] });
-  };
-
-  const clearIncidencias = () => {
-    onFilterChange({ ...filters, incidencias: [] });
-  };
-
-  const filteredIncidenciasList = INCIDENCIAS_LIST.filter((inc) =>
-    inc.toLowerCase().includes(incFilterSearch.toLowerCase())
-  );
-
-  return (
-    <aside className="w-full lg:w-48 xl:w-56 shrink-0 flex flex-col gap-2.5">
-      {/* PANEL DE ACCIONES LIMPIO: EXPORTACIÓN, GUARDADO Y ALERTAS EN VIVO */}
-      <div className="bg-[#0b1f3b] rounded-lg border-2 border-cyan-800 shadow-md p-2.5 flex flex-col gap-2">
-        <div className="text-[11px] font-black uppercase text-center text-cyan-200 tracking-wider pb-1.5 border-b border-cyan-900/80 flex items-center justify-center gap-1.5">
-          <Download className="w-3.5 h-3.5 text-cyan-400" />
-          <span>ACCIONES Y REPORTES</span>
-        </div>
-
-        {/* BOTÓN PRINCIPAL: GUARDAR CAMBIOS */}
-        {onSaveChanges && (
-          <button
-            id="btn-sidebar-save-changes"
-            onClick={onSaveChanges}
-            className={`w-full py-2.5 px-3 rounded-lg font-black text-xs uppercase tracking-wide border shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 group ${
-              hasUnsavedChanges
-                ? 'bg-gradient-to-r from-amber-500 via-orange-600 to-amber-600 text-white border-amber-300 ring-2 ring-amber-400/60 animate-pulse hover:brightness-110'
-                : 'bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white border-emerald-300 ring-1 ring-emerald-400/40 shadow-emerald-950/40'
-            }`}
-            title="Guardar todos los registros y cambios en el sistema para que no sea necesario volver a meter datos"
-          >
-            <Save className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform shrink-0" />
-            <div className="flex flex-col text-left leading-tight">
-              <span className="font-black text-[11px]">GUARDAR CAMBIOS</span>
-              <span className="text-[8px] opacity-90 font-mono font-medium">
-                {hasUnsavedChanges ? '● Cambios pendientes' : 'Permanente en navegador'}
-              </span>
-            </div>
-          </button>
-        )}
-
-        {/* BOTÓN: SUBIR EXCEL / BASE DE DATOS */}
-        {onOpenExcelModal && (
-          <button
-            id="btn-sidebar-upload-excel"
-            onClick={onOpenExcelModal}
-            className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 hover:from-blue-600 hover:to-cyan-600 text-white font-black text-xs uppercase tracking-wide border border-cyan-400/80 shadow flex items-center justify-center gap-2 transition-transform active:scale-95 group"
-            title="Subir archivo Excel (.xlsx / .xls) para cargar su Base de Datos oficial"
-          >
-            <Upload className="w-4 h-4 text-cyan-200 group-hover:scale-110 transition-transform shrink-0" />
-            <span>SUBIR EXCEL (BD)</span>
-          </button>
-        )}
-
-        <button
-          id="btn-action-export-excel"
-          onClick={onExportExcel}
-          className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs uppercase tracking-wide border border-emerald-400/60 shadow flex items-center justify-center gap-2 transition-transform active:scale-95"
-          title="Descargar libro oficial en formato Excel (.xlsx)"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-          <span>DESCARGAR EXCEL</span>
-        </button>
-
-        <button
-          id="btn-action-export-pdf"
-          onClick={onExportPdf}
-          className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-[#144272] to-[#0f3460] hover:from-[#1b5592] hover:to-[#144272] text-white font-black text-xs uppercase tracking-wide border border-cyan-500/60 shadow flex items-center justify-center gap-2 transition-transform active:scale-95"
-          title="Generar informe en PDF listo para impresión"
-        >
-          <Download className="w-4 h-4 text-cyan-200" />
-          <span>EXPORTAR PDF</span>
-        </button>
-
-        <button
-          id="btn-action-alerts"
-          onClick={onOpenAlerts}
-          className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-[#102a45] to-[#0a1f34] hover:from-[#16385c] hover:to-[#0f2d4b] text-amber-200 hover:text-white font-black text-xs uppercase tracking-wide border border-amber-500/40 shadow flex items-center justify-center gap-2 transition-transform active:scale-95"
-          title="Monitoreo radial y despacho de emergencias en tiempo real"
-        >
-          <BellRing className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-          <span>ALERTAS EN VIVO</span>
-        </button>
-      </div>
-
-      {/* INCIDENCIA Slicer Box (Matching screenshot & multi-select) */}
-      <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm overflow-hidden text-slate-800 flex-1 flex flex-col">
+      {/* INCIDENCIA Slicer Box */}
+      <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm overflow-hidden text-slate-800 flex flex-col">
         <div className="bg-[#0f2c4c] text-white px-2.5 py-1.5 flex items-center justify-between text-xs font-bold uppercase tracking-wider">
           <div className="flex items-center gap-1.5">
             <span>INCIDENCIA</span>
@@ -619,40 +500,34 @@ export const RightActions: React.FC<RightActionsProps> = ({
               ({filters.incidencias.length === 0 ? 'TODOS' : `${filters.incidencias.length}/${INCIDENCIAS_LIST.length}`})
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => setMultiSelectInc((p) => !p)}
-              title={multiSelectInc ? 'Selección múltiple activada' : 'Selección simple'}
-              className={`p-0.5 rounded transition-colors ${
-                multiSelectInc ? 'text-cyan-300 bg-cyan-900/60' : 'text-slate-400 hover:text-white'
+              onClick={selectAllIncidencias}
+              className="text-[9px] px-1 py-0.2 rounded bg-blue-800/80 hover:bg-blue-700 text-cyan-200 hover:text-white transition-colors"
+              title="Marcar todas las incidencias"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              onClick={clearIncidencias}
+              className="text-[9px] px-1 py-0.2 rounded bg-slate-800/80 hover:bg-rose-900 text-slate-300 hover:text-white transition-colors"
+              title="Limpiar incidencias"
+            >
+              Limpiar
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleMultiSelectMode('incidencia')}
+              title={multiSelect.incidencia ? 'Selección múltiple activada' : 'Selección simple'}
+              className={`p-0.5 rounded transition-colors ml-0.5 ${
+                multiSelect.incidencia ? 'text-cyan-300 bg-cyan-900/60' : 'text-slate-400 hover:text-white'
               }`}
             >
-              <ListChecks className="w-3.5 h-3.5" />
+              <ListChecks className="w-3 h-3" />
             </button>
           </div>
-        </div>
-
-        {/* Dedicated Quick Action Slicer Buttons for Incidencias */}
-        <div className="grid grid-cols-2 gap-1 px-1.5 py-1 bg-slate-100 border-b border-slate-200">
-          <button
-            type="button"
-            onClick={selectAllIncidencias}
-            className="py-1 px-1.5 rounded bg-blue-700 hover:bg-blue-800 text-white text-[10px] font-bold flex items-center justify-center gap-1 transition-colors shadow-xs"
-            title="Marcar todas las incidencias"
-          >
-            <CheckSquare className="w-3 h-3 text-cyan-200" />
-            <span>Marcar Todos</span>
-          </button>
-          <button
-            type="button"
-            onClick={clearIncidencias}
-            className="py-1 px-1.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-800 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors border border-slate-300 shadow-xs"
-            title="Limpiar filtro de incidencias"
-          >
-            <FilterX className="w-3 h-3 text-rose-600" />
-            <span>Limpiar Filtros</span>
-          </button>
         </div>
 
         {/* Quick search inside Incidencias */}
@@ -661,12 +536,12 @@ export const RightActions: React.FC<RightActionsProps> = ({
             type="text"
             value={incFilterSearch}
             onChange={(e) => setIncFilterSearch(e.target.value)}
-            placeholder="Filtrar incidencia..."
-            className="w-full px-2 py-0.5 text-[11px] bg-white border border-slate-300 rounded focus:outline-none focus:border-blue-500 font-medium"
+            placeholder="Filtrar tipo de incidencia..."
+            className="w-full px-2 py-1 text-[11px] bg-white border border-slate-300 rounded focus:outline-none focus:border-blue-500 font-medium"
           />
         </div>
 
-        <div className="p-1.5 flex flex-col gap-1 max-h-[380px] overflow-y-auto">
+        <div className="p-1.5 flex flex-col gap-1 max-h-64 overflow-y-auto">
           {filteredIncidenciasList.map((inc) => {
             const isSelected = filters.incidencias.includes(inc);
             return (
@@ -677,7 +552,7 @@ export const RightActions: React.FC<RightActionsProps> = ({
                 className={`w-full text-left px-2 py-1.5 rounded text-[11px] font-semibold transition-all border flex items-center justify-between leading-snug ${
                   isSelected
                     ? 'bg-[#1b5e94] text-white border-[#1b5e94] font-bold shadow-sm'
-                    : 'bg-[#5b96cc] hover:bg-[#4884bd] text-white border-[#3c75a8]'
+                    : 'bg-[#5b96cc]/90 hover:bg-[#4884bd] text-white border-[#3c75a8]'
                 }`}
                 title={inc}
               >
@@ -697,3 +572,4 @@ export const RightActions: React.FC<RightActionsProps> = ({
     </aside>
   );
 };
+
