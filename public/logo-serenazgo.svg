@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0e2a47" />
+      <stop offset="60%" stop-color="#08182b" />
+      <stop offset="100%" stop-color="#030b14" />
+    </radialGradient>
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#facc15" />
+      <stop offset="80%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </radialGradient>
+    <linearGradient id="goldRibbon" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="30%" stop-color="#eab308" />
+      <stop offset="70%" stop-color="#ca8a04" />
+      <stop offset="100%" stop-color="#a16207" />
+    </linearGradient>
+    <linearGradient id="shieldLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="100%" stop-color="#cbd5e1" />
+    </linearGradient>
+    <linearGradient id="shieldRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a" />
+      <stop offset="100%" stop-color="#14532d" />
+    </linearGradient>
+    <linearGradient id="seaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#075985" />
+    </linearGradient>
+    <linearGradient id="cyanTech" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+
+    <!-- Curved Text Paths -->
+    <!-- Top arc: radius 215, centered at 250,250 -->
+    <path id="topTextPath" d="M 60,250 A 190,190 0 0,1 440,250" fill="none" />
+    <!-- Bottom arc: radius 200, centered at 250,250 -->
+    <path id="bottomTextPath" d="M 440,250 A 190,190 0 0,1 60,250" fill="none" />
+  </defs>
+
+  <!-- Outer Black/Gold Ring Border -->
+  <circle cx="250" cy="250" r="242" fill="#050d18" stroke="url(#goldRibbon)" stroke-width="7" />
+  <circle cx="250" cy="250" r="232" fill="none" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7" />
+
+  <!-- Outer Ring Dark Blue Background -->
+  <circle cx="250" cy="250" r="230" fill="#071b30" stroke="#1e293b" stroke-width="2" />
+
+  <!-- Inner Center Circle -->
+  <circle cx="250" cy="250" r="172" fill="url(#bgGrad)" stroke="#38bdf8" stroke-width="3" />
+
+  <!-- Circuit Tech Lines inside inner circle -->
+  <g stroke="#0284c7" stroke-width="1.5" opacity="0.45" fill="none">
+    <path d="M 120 250 H 170 L 190 280 H 220" />
+    <circle cx="220" cy="280" r="3" fill="#38bdf8" />
+    <path d="M 380 250 H 330 L 310 280 H 280" />
+    <circle cx="280" cy="280" r="3" fill="#38bdf8" />
+    <path d="M 250 350 V 380 L 230 400" />
+    <circle cx="230" cy="400" r="3" fill="#38bdf8" />
+    <path d="M 250 350 V 380 L 270 400" />
+    <circle cx="270" cy="400" r="3" fill="#38bdf8" />
+  </g>
+
+  <!-- Curved Text: Top SERENAZGO -->
+  <text font-family="'Arial Black', Impact, sans-serif" font-size="34" font-weight="900" fill="#ffffff" letter-spacing="8">
+    <textPath href="#topTextPath" startOffset="50%" text-anchor="middle">
+      SERENAZGO
+    </textPath>
+  </text>
+
+  <!-- Curved Text: Bottom NUEVO CHIMBOTE -->
+  <text font-family="'Arial Black', Impact, sans-serif" font-size="28" font-weight="900" fill="#facc15" letter-spacing="6">
+    <textPath href="#bottomTextPath" startOffset="50%" text-anchor="middle">
+      NUEVO CHIMBOTE
+    </textPath>
+  </text>
+
+  <!-- Top Ribbon: NUEVO CHIMBOTE -->
+  <g transform="translate(0, -10)">
+    <path d="M 140 135 Q 250 115 360 135 L 350 162 Q 250 142 150 162 Z" fill="url(#goldRibbon)" stroke="#78350f" stroke-width="2" />
+    <text x="250" y="152" font-family="'Arial Black', sans-serif" font-size="14" font-weight="900" fill="#0f172a" text-anchor="middle" letter-spacing="2">
+      NUEVO CHIMBOTE
+    </text>
+  </g>
+
+  <!-- Top Drone Icon -->
+  <g transform="translate(250, 100) scale(0.65)" opacity="0.95">
+    <circle cx="0" cy="0" r="8" fill="#38bdf8" />
+    <path d="M -22 -14 L 22 14 M -22 14 L 22 -14" stroke="#e2e8f0" stroke-width="3" />
+    <circle cx="-22" cy="-14" r="7" fill="none" stroke="#38bdf8" stroke-width="2" />
+    <circle cx="22" cy="14" r="7" fill="none" stroke="#38bdf8" stroke-width="2" />
+    <circle cx="-22" cy="14" r="7" fill="none" stroke="#38bdf8" stroke-width="2" />
+    <circle cx="22" cy="-14" r="7" fill="none" stroke="#38bdf8" stroke-width="2" />
+  </g>
+
+  <!-- Radiant Rising Sun -->
+  <g transform="translate(250, 205)">
+    <!-- Sunburst Rays -->
+    <path d="M 0 -50 L 0 -32 M -35 -35 L -22 -22 M -50 0 L -32 0 M 35 -35 L 22 -22 M 50 0 L 32 0 M -46 -18 L -30 -12 M 46 -18 L 30 -12" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" />
+    <!-- Sun Half/Body -->
+    <path d="M -30 0 A 30 30 0 0 1 30 0 Z" fill="url(#sunGlow)" stroke="#ca8a04" stroke-width="2" />
+  </g>
+
+  <!-- Central Municipal Heraldic Shield -->
+  <g transform="translate(250, 250)">
+    <!-- Left Half of Shield (White/Silver) -->
+    <path d="M 0 -45 L -52 -45 C -52 -5 -45 40 0 75 Z" fill="url(#shieldLeft)" stroke="#94a3b8" stroke-width="1.5" />
+    <!-- Right Half of Shield (Emerald Green) -->
+    <path d="M 0 -45 L 52 -45 C 52 -5 45 40 0 75 Z" fill="url(#shieldRight)" stroke="#15803d" stroke-width="1.5" />
+    
+    <!-- White Flowers on Green Field -->
+    <g transform="translate(26, -10)" fill="#ffffff">
+      <circle cx="0" cy="0" r="3" fill="#fef08a" />
+      <circle cx="0" cy="-6" r="3" />
+      <circle cx="0" cy="6" r="3" />
+      <circle cx="-6" cy="0" r="3" />
+      <circle cx="6" cy="0" r="3" />
+    </g>
+    <g transform="translate(20, 20)" fill="#ffffff">
+      <circle cx="0" cy="0" r="2.5" fill="#fef08a" />
+      <circle cx="0" cy="-5" r="2.5" />
+      <circle cx="0" cy="5" r="2.5" />
+      <circle cx="-5" cy="0" r="2.5" />
+      <circle cx="5" cy="0" r="2.5" />
+    </g>
+
+    <!-- Lower Ocean Waves (Bottom of Shield) -->
+    <path d="M -44 32 C -25 24 -15 42 0 35 C 15 42 25 24 44 32 C 35 55 20 68 0 75 C -20 68 -35 55 -44 32 Z" fill="url(#seaGrad)" />
+    
+    <!-- Stylized Silver Fishes in Waves -->
+    <g transform="translate(-14, 48) scale(0.6)" fill="#f1f5f9">
+      <path d="M -15 0 C -5 -6 5 -4 12 0 C 5 4 -5 6 -15 0 Z" />
+      <polygon points="12,0 18,-4 18,4" />
+    </g>
+    <g transform="translate(14, 54) scale(0.55) scale(-1, 1)" fill="#f1f5f9">
+      <path d="M -15 0 C -5 -6 5 -4 12 0 C 5 4 -5 6 -15 0 Z" />
+      <polygon points="12,0 18,-4 18,4" />
+    </g>
+
+    <!-- Shield Border Outline -->
+    <path d="M 0 -45 L -52 -45 C -52 -5 -45 40 0 75 C 45 40 52 -5 52 -45 Z" fill="none" stroke="url(#goldRibbon)" stroke-width="3" />
+  </g>
+
+  <!-- Flanking White Herons (Garzas Blancas) -->
+  <!-- Left Heron -->
+  <g transform="translate(155, 220) scale(0.65)">
+    <!-- Heron Body & Neck -->
+    <path d="M 50 60 C 30 40 25 15 35 -10 C 38 -18 35 -25 30 -30 C 25 -25 20 -15 22 5 C 15 15 5 35 15 65 C 20 75 40 75 50 60 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+    <!-- Beak -->
+    <polygon points="35,-26 50,-24 35,-22" fill="#f59e0b" />
+    <!-- Wing Feathers -->
+    <path d="M 20 40 C 5 55 10 75 30 72 C 22 65 20 50 20 40 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+    <!-- Eye -->
+    <circle cx="32" cy="-24" r="1.5" fill="#0f172a" />
+  </g>
+  <!-- Right Heron (Mirrored) -->
+  <g transform="translate(345, 220) scale(-0.65, 0.65)">
+    <path d="M 50 60 C 30 40 25 15 35 -10 C 38 -18 35 -25 30 -30 C 25 -25 20 -15 22 5 C 15 15 5 35 15 65 C 20 75 40 75 50 60 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+    <polygon points="35,-26 50,-24 35,-22" fill="#f59e0b" />
+    <path d="M 20 40 C 5 55 10 75 30 72 C 22 65 20 50 20 40 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" />
+    <circle cx="32" cy="-24" r="1.5" fill="#0f172a" />
+  </g>
+
+  <!-- Lower Ribbon: DISTRITO ECOLÓGICO -->
+  <g transform="translate(0, 310)">
+    <path d="M 130 20 Q 250 40 370 20 L 360 -5 Q 250 15 140 -5 Z" fill="url(#goldRibbon)" stroke="#78350f" stroke-width="2" />
+    <text x="250" y="16" font-family="'Arial Black', sans-serif" font-size="13" font-weight="900" fill="#0f172a" text-anchor="middle" letter-spacing="2">
+      DISTRITO ECOLÓGICO
+    </text>
+  </g>
+
+  <!-- Bottom Technology Icons: CCTV Camera (Left) and Globe + Pin (Right) -->
+  <g transform="translate(170, 355)">
+    <!-- CCTV Camera -->
+    <path d="M 0 5 L 22 -3 L 24 9 L 2 17 Z" fill="#38bdf8" />
+    <circle cx="2" cy="11" r="5" fill="#0284c7" />
+    <path d="M 12 11 L 12 24 L 20 24" stroke="#94a3b8" stroke-width="2" fill="none" />
+    <circle cx="23" cy="3" r="2" fill="#ef4444" />
+  </g>
+
+  <g transform="translate(325, 360)">
+    <!-- Wireframe Globe + Pin -->
+    <circle cx="0" cy="0" r="12" fill="none" stroke="#38bdf8" stroke-width="1.5" />
+    <ellipse cx="0" cy="0" rx="6" ry="12" fill="none" stroke="#38bdf8" stroke-width="1" />
+    <line x1="-12" y1="0" x2="12" y2="0" stroke="#38bdf8" stroke-width="1" />
+    <!-- Map Pin -->
+    <path d="M 0 -4 C -4 -4 -4 -9 0 -13 C 4 -9 4 -4 0 -4 Z" fill="#ef4444" stroke="#ffffff" stroke-width="0.8" />
+    <circle cx="0" cy="-8.5" r="1.5" fill="#ffffff" />
+  </g>
+</svg>
