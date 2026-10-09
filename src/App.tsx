@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   IncidentRecord,
   FilterState,
@@ -16,7 +16,12 @@ import {
 } from './types';
 import { INITIAL_PATROL_UNITS, SUBSECTORES_CONFIG } from './data/mockData';
 import { soundManager } from './utils/audioAlert';
-import { exportIncidentsToExcel, parseAndConvertExcelBuffer } from './utils/excelHelper';
+import {
+  exportIncidentsToExcel,
+  parseAndConvertExcelBuffer,
+  parseExcelFile,
+  transformRowsToIncidents,
+} from './utils/excelHelper';
 import { useEditableTitles } from './utils/useEditableTitles';
 import { AuthProvider, useAuth } from './utils/authContext';
 import { AdminAuthModal } from './components/AdminAuthModal';
@@ -41,12 +46,24 @@ import { NewIncidentModal } from './components/NewIncidentModal';
 import { ReportPrintModal } from './components/ReportPrintModal';
 import { AlertsModal } from './components/AlertsModal';
 import { Footer } from './components/Footer';
-import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database, Trash2, AlertTriangle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { SaveConfirmationToast } from './components/SaveConfirmationToast';
 import {
   saveAllDataToStorage,
   clearAllSavedData,
 } from './utils/persistenceHelper';
+
+// Reset completo inmediato de memoria y caché antes de inicializar la aplicación
+try {
+  localStorage.clear();
+} catch (e) {
+  console.warn('localStorage.clear notice:', e);
+}
+try {
+  clearAllSavedData();
+} catch (e) {
+  console.warn('clearAllSavedData notice:', e);
+}
 
 const INITIAL_FILTERS: FilterState = {
   zonas: [],
@@ -60,12 +77,14 @@ const INITIAL_FILTERS: FilterState = {
 function DashboardInner() {
   const { requireAdmin } = useAuth();
 
-  // 1. Database records state: Carga directamente desde /public/base de datos28setiembre.xlsx
+  // 1. Database records state: En espera de que el usuario suba la base de datos (20,635 filas) o se lea de /public/base_de_datos.xlsx
   const [records, setRecords] = useState<IncidentRecord[]>([]);
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(true);
   const [fileLoadError, setFileLoadError] = useState<string | null>(null);
-  const [isCustomDataLoaded, setIsCustomDataLoaded] = useState<boolean>(true);
+  const [isCustomDataLoaded, setIsCustomDataLoaded] = useState<boolean>(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [justSaved, setJustSaved] = useState<boolean>(false);
@@ -93,12 +112,12 @@ function DashboardInner() {
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
-  // Carga inicial directa desde el archivo estático en /public, borrando cualquier dato previo de storage
+  // Carga inicial directa desde el archivo estático en /public si está presente, sin usar datos en caché
   const loadOfficialFile = async () => {
     setIsLoadingFile(true);
     setFileLoadError(null);
 
-    // Borra e ignora cualquier dato previo de localStorage o IndexedDB
+    // Reset completo de datos en memoria y caché
     try {
       localStorage.clear();
     } catch {
@@ -111,31 +130,85 @@ function DashboardInner() {
     }
 
     try {
-      let res = await fetch('/base%20de%20datos28setiembre.xlsx');
-      if (!res.ok) {
-        res = await fetch('/base de datos28setiembre.xlsx');
-      }
-      if (!res.ok) {
-        throw new Error(`No se pudo descargar el archivo Excel (Status ${res.status}): ${res.statusText}`);
+      // Prioriza 'base_de_datos.xlsx' y 'base_de_datos.csv'
+      const candidates = [
+        '/base_de_datos.xlsx',
+        '/base_de_datos.csv',
+        '/public/base_de_datos.xlsx',
+        '/public/base_de_datos.csv',
+      ];
+
+      let res: Response | null = null;
+      let usedPath = '';
+
+      for (const path of candidates) {
+        try {
+          const attempt = await fetch(path);
+          if (attempt.ok) {
+            res = attempt;
+            usedPath = path;
+            break;
+          }
+        } catch {
+          // Continúa
+        }
       }
 
-      const buffer = await res.arrayBuffer();
-      const parsedRecords = parseAndConvertExcelBuffer(buffer);
+      if (res && res.ok) {
+        const buffer = await res.arrayBuffer();
+        const parsedRecords = parseAndConvertExcelBuffer(buffer);
 
-      if (!parsedRecords || parsedRecords.length === 0) {
-        throw new Error('El archivo no contiene filas de incidencias válidas.');
+        if (parsedRecords && parsedRecords.length > 0) {
+          const cleanFileName = usedPath.split('/').pop()?.replace(/%20/g, ' ') || 'base_de_datos.xlsx';
+          setRecords(parsedRecords);
+          setIsCustomDataLoaded(true);
+          setLastSavedAt(`${cleanFileName} (${parsedRecords.length.toLocaleString()} registros)`);
+          setFilters(INITIAL_FILTERS);
+          setIsLoadingFile(false);
+          return;
+        }
       }
 
-      setRecords(parsedRecords);
-      setIsCustomDataLoaded(true);
-      setLastSavedAt(`Base Oficial 28-Set (${parsedRecords.length.toLocaleString()} registros)`);
-      setFilters(INITIAL_FILTERS);
+      // Si no está presente, la aplicación queda en espera de que el usuario suba la base de datos (20,635 filas)
+      setRecords([]);
+      setIsCustomDataLoaded(false);
+      setLastSavedAt(null);
       setIsLoadingFile(false);
     } catch (err: unknown) {
-      console.error('Error cargando base oficial desde /public:', err);
-      const msg = err instanceof Error ? err.message : 'Error inesperado al procesar el archivo Excel.';
-      setFileLoadError(msg);
+      console.warn('Lectura automática no disponible, en espera de subida manual:', err);
+      setRecords([]);
+      setIsCustomDataLoaded(false);
       setIsLoadingFile(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOfficialFile();
+  }, []);
+
+  // Carga manual directa de archivo seleccionado por el usuario
+  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsLoadingFile(true);
+      const parsed = await parseExcelFile(file);
+      const incidents = transformRowsToIncidents(parsed.rawRows, parsed.detectedMapping);
+      if (incidents.length === 0) {
+        throw new Error('No se detectaron registros válidos en el archivo.');
+      }
+      setRecords(incidents);
+      setIsCustomDataLoaded(true);
+      setLastSavedAt(`${file.name} (${incidents.length.toLocaleString()} registros)`);
+      setFilters(INITIAL_FILTERS);
+      soundManager.playSuccess();
+      setIsSaveToastOpen(true);
+      setIsLoadingFile(false);
+    } catch (err: unknown) {
+      alert('Error procesando archivo: ' + (err instanceof Error ? err.message : 'Error desconocido'));
+      setIsLoadingFile(false);
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -343,80 +416,150 @@ function DashboardInner() {
               onResetFilters={handleResetFilters}
             />
 
-            {/* Center Area: KPI Cards + Status Bar + (7 Iconic Charts OR Heatmap in the middle) */}
+            {/* Center Area: Si no hay registros aún, muestra la pantalla de espera de subida */}
             <div className="flex-1 flex flex-col gap-2 min-w-0 w-full">
-              {/* 4 Iconic KPI Cards with Editable Titles */}
-              <KpiCards
-                filteredRecords={filteredRecords}
-                totalRecordsCount={records.length}
-                titles={titles}
-                onUpdateTitle={updateTitle}
-              />
+              {records.length === 0 && !isLoadingFile ? (
+                <div className="bg-gradient-to-b from-[#0b1f3b] via-[#0d274c] to-[#07162c] rounded-xl border-2 border-cyan-500/60 shadow-2xl p-6 sm:p-10 flex flex-col items-center justify-center text-center text-white my-auto min-h-[560px]">
+                  {/* Badge de estado */}
+                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/90 border border-cyan-400 text-cyan-300 text-xs font-mono font-bold mb-4 shadow-lg">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+                    <span>EN ESPERA DE BASE DE DATOS ACTUALIZADA (20,635 FILAS)</span>
+                  </div>
 
-              {/* Barra de Estado Oficial Limpia */}
-              <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2 text-slate-700 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>
-                    Base de Datos Activa: Mostrando <strong className="font-black text-blue-900 font-mono">{filteredRecords.length.toLocaleString()}</strong> de{' '}
-                    <strong className="font-mono">{records.length.toLocaleString()}</strong> registros oficiales
-                  </span>
-                  {lastSavedAt && (
-                    <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono ml-1 font-semibold">
-                      <HardDrive className="w-3 h-3 text-emerald-600" />
-                      <span>Guardado: {lastSavedAt}</span>
-                    </span>
-                  )}
+                  <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 border-2 border-cyan-400/50 flex items-center justify-center text-cyan-300 mb-4 shadow-[0_0_25px_rgba(6,182,212,0.25)]">
+                    <FileSpreadsheet className="w-10 h-10" />
+                  </div>
+
+                  <h2 className="text-xl sm:text-2xl font-black uppercase text-white tracking-wider max-w-xl">
+                    Central de Monitoreo y Operativos Serenazgo
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-300 max-w-xl mt-2 leading-relaxed">
+                    Se ha ejecutado un <strong className="text-emerald-300 font-bold">reset completo de memoria y caché</strong> (localStorage e IndexedDB limpios, sin datos mockeados anteriores). La aplicación está a la espera de que suba la base de datos actualizada para indexar sus 20,635 filas.
+                  </p>
+
+                  {/* Acciones principales */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3 mt-6 w-full max-w-md">
+                    <button
+                      type="button"
+                      id="btn-upload-waiting-primary"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs sm:text-sm uppercase tracking-wide shadow-xl flex items-center justify-center gap-2.5 transition-transform active:scale-95 cursor-pointer border border-emerald-300"
+                    >
+                      <Upload className="w-5 h-5 text-emerald-100" />
+                      <span>Subir Base de Datos (.xlsx / .csv)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      id="btn-check-public-waiting"
+                      onClick={loadOfficialFile}
+                      className="w-full sm:w-auto py-3 px-4 rounded-xl bg-[#0f2d52] hover:bg-[#163e70] border border-cyan-600/70 text-cyan-200 font-bold text-xs uppercase tracking-wide flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
+                      title="Intentar leer directamente /public/base_de_datos.xlsx si ya lo colocó en la carpeta"
+                    >
+                      <RefreshCw className="w-4 h-4 text-cyan-400" />
+                      <span>Leer /public/base_de_datos.xlsx</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-1.5 font-mono">
+                    <span>💡 También puede usar la pestaña</span>
+                    <button
+                      onClick={() => setActiveTab('BD')}
+                      className="text-cyan-300 underline font-bold hover:text-white"
+                    >
+                      BD / EXCEL
+                    </button>
+                    <span>o el asistente de carga</span>
+                  </p>
                 </div>
-
-                {isCustomTitles && (
-                  <button
-                    type="button"
-                    onClick={resetTitles}
-                    className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-auto"
-                    title="Restablecer todos los títulos modificados a los originales"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>Restablecer títulos</span>
-                  </button>
-                )}
-              </div>
-
-              {/* CENTER CONTENT: Either 7 Charts OR Map in the Middle */}
-              {centerMode === 'GRAFICOS' ? (
-                <VistaResumen
-                  records={filteredRecords}
-                  allRecords={records}
-                  selectedMes={filters.meses.length === 1 ? filters.meses[0] : null}
-                  titles={titles}
-                  onUpdateTitle={updateTitle}
-                  onSelectMes={(m) => setFilters((prev) => ({ ...prev, meses: m ? [m] : [] }))}
-                  onSelectSubsector={(s) => setFilters((prev) => ({ ...prev, searchQuery: s }))}
-                  onSelectTurno={(t) => setFilters((prev) => ({ ...prev, turnos: [t as TurnoType] }))}
-                  onSelectZona={(z) => setFilters((prev) => ({ ...prev, zonas: [z as ZonaType] }))}
-                  onSelectComisaria={(c) => setFilters((prev) => ({ ...prev, comisarias: [c as ComisariaType] }))}
-                  onSelectDia={(d) => setFilters((prev) => ({ ...prev, searchQuery: d }))}
-                  onNavigateToHeatmap={() => {
-                    setCenterMode('MAPA');
-                    setActiveTab('MAPA_CALOR');
-                  }}
-                  onNavigateToDetails={() => setActiveTab('DETALLE_INCIDENCIAS')}
-                  onNavigateToPlanes={() => setActiveTab('PLAN_OPERATIVOS')}
-                />
               ) : (
-                <div className="flex-1 flex flex-col min-h-[680px] rounded-lg overflow-hidden border-2 border-[#124270] shadow-xl bg-slate-950">
-                  <MapErrorBoundary fallbackTitle="Radar GIS Municipal y Mapa de Calor">
-                    <TacticalMapView
+                <>
+                  {/* 4 Iconic KPI Cards with Editable Titles */}
+                  <KpiCards
+                    filteredRecords={filteredRecords}
+                    totalRecordsCount={records.length}
+                    titles={titles}
+                    onUpdateTitle={updateTitle}
+                  />
+
+                  {/* Barra de Estado Oficial Limpia */}
+                  <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-slate-700 font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>
+                        Base de Datos Activa: Mostrando <strong className="font-black text-blue-900 font-mono">{filteredRecords.length.toLocaleString()}</strong> de{' '}
+                        <strong className="font-mono">{records.length.toLocaleString()}</strong> registros oficiales
+                      </span>
+                      {lastSavedAt && (
+                        <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono ml-1 font-semibold">
+                          <HardDrive className="w-3 h-3 text-emerald-600" />
+                          <span>Guardado: {lastSavedAt}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-[11px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 hover:underline"
+                        title="Subir o actualizar base de datos"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>Actualizar BD</span>
+                      </button>
+
+                      {isCustomTitles && (
+                        <button
+                          type="button"
+                          onClick={resetTitles}
+                          className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-2"
+                          title="Restablecer todos los títulos modificados a los originales"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Restablecer títulos</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CENTER CONTENT: Either 7 Charts OR Map in the Middle */}
+                  {centerMode === 'GRAFICOS' ? (
+                    <VistaResumen
                       records={filteredRecords}
-                      patrolUnits={patrolUnits}
-                      onSelectIncident={() => {}}
-                      onDispatchUnit={(unitId, loc) => {
-                        soundManager.playEmergency();
-                        alert(`¡Unidad ${unitId} despachada hacia ${loc}! Notificación enviada a la tripulación.`);
+                      allRecords={records}
+                      selectedMes={filters.meses.length === 1 ? filters.meses[0] : null}
+                      titles={titles}
+                      onUpdateTitle={updateTitle}
+                      onSelectMes={(m) => setFilters((prev) => ({ ...prev, meses: m ? [m] : [] }))}
+                      onSelectSubsector={(s) => setFilters((prev) => ({ ...prev, searchQuery: s }))}
+                      onSelectTurno={(t) => setFilters((prev) => ({ ...prev, turnos: [t as TurnoType] }))}
+                      onSelectZona={(z) => setFilters((prev) => ({ ...prev, zonas: [z as ZonaType] }))}
+                      onSelectComisaria={(c) => setFilters((prev) => ({ ...prev, comisarias: [c as ComisariaType] }))}
+                      onSelectDia={(d) => setFilters((prev) => ({ ...prev, searchQuery: d }))}
+                      onNavigateToHeatmap={() => {
+                        setCenterMode('MAPA');
+                        setActiveTab('MAPA_CALOR');
                       }}
+                      onNavigateToDetails={() => setActiveTab('DETALLE_INCIDENCIAS')}
+                      onNavigateToPlanes={() => setActiveTab('PLAN_OPERATIVOS')}
                     />
-                  </MapErrorBoundary>
-                </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col min-h-[680px] rounded-lg overflow-hidden border-2 border-[#124270] shadow-xl bg-slate-950">
+                      <MapErrorBoundary fallbackTitle="Radar GIS Municipal y Mapa de Calor">
+                        <TacticalMapView
+                          records={filteredRecords}
+                          patrolUnits={patrolUnits}
+                          onSelectIncident={() => {}}
+                          onDispatchUnit={(unitId, loc) => {
+                            soundManager.playEmergency();
+                            alert(`¡Unidad ${unitId} despachada hacia ${loc}! Notificación enviada a la tripulación.`);
+                          }}
+                        />
+                      </MapErrorBoundary>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -473,6 +616,15 @@ function DashboardInner() {
         records={records}
         lastSavedAt={lastSavedAt}
         titles={titles}
+      />
+
+      {/* Input de archivo nativo directo */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept=".xlsx,.xls,.csv"
+        onChange={handleDirectFileUpload}
+        className="hidden"
       />
 
       {/* Modals */}
@@ -566,7 +718,7 @@ function DashboardInner() {
             Cargando Base de Datos Oficial
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 max-w-lg mt-2 font-medium leading-relaxed">
-            Indexando registros de <strong className="text-white font-mono">base de datos28setiembre.xlsx</strong> (20,208 atenciones de Serenazgo Nuevo Chimbote)...
+            Indexando registros de <strong className="text-white font-mono">base_de_datos.xlsx</strong> (o <strong className="text-white font-mono">base_de_datos.csv</strong>)...
           </p>
           <div className="mt-4 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-700/60 text-xs text-cyan-300 font-mono shadow-lg">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
