@@ -17,9 +17,9 @@ export const SerenazgoLogo: React.FC<SerenazgoLogoProps> = ({
       }`}
     >
       <img
-        src="/logo-serenazgo.svg"
+        src="/logo.png"
         alt="Logo Serenazgo Nuevo Chimbote"
-        className="w-full h-full object-contain drop-shadow-md"
+        className="w-full h-full object-contain aspect-square select-none drop-shadow-md"
         loading="eager"
       />
     </div>

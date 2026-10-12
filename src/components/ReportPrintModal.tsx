@@ -93,7 +93,7 @@ export const ReportPrintModal: React.FC<ReportPrintModalProps> = ({
             style={{ opacity: 0.04 }}
           >
             <img
-              src="/logo-serenazgo.svg"
+              src="/logo.png"
               alt=""
               className="w-[450px] h-[450px] object-contain grayscale contrast-125"
             />

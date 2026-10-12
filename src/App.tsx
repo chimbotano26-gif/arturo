@@ -44,6 +44,8 @@ import { CustomTitlesProvider, useCustomTitles } from './context/CustomTitlesCon
 import { ExcelUploadModal } from './components/ExcelUploadModal';
 import { NewIncidentModal } from './components/NewIncidentModal';
 import { ReportPrintModal } from './components/ReportPrintModal';
+import { MonthlyReportModal } from './components/MonthlyReportModal';
+import { AnnualConsolidatedModal } from './components/AnnualConsolidatedModal';
 import { AlertsModal } from './components/AlertsModal';
 import { Footer } from './components/Footer';
 import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database, Trash2, AlertTriangle, RefreshCw, CheckCircle2 } from 'lucide-react';
@@ -109,6 +111,8 @@ function DashboardInner() {
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isMonthlyReportModalOpen, setIsMonthlyReportModalOpen] = useState(false);
+  const [isAnnualConsolidatedModalOpen, setIsAnnualConsolidatedModalOpen] = useState(false);
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
@@ -385,7 +389,7 @@ function DashboardInner() {
         style={{ opacity: 0.04, transform: 'translateZ(0)' }}
       >
         <img
-          src="/logo-serenazgo.svg"
+          src="/logo.png"
           alt=""
           className="w-[680px] h-[680px] max-w-[85vw] max-h-[85vh] object-contain grayscale contrast-125"
         />
@@ -402,6 +406,8 @@ function DashboardInner() {
             setCenterMode('GRAFICOS');
           }
         }}
+        onOpenMonthlyReport={() => setIsMonthlyReportModalOpen(true)}
+        onOpenAnnualConsolidated={() => setIsAnnualConsolidatedModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -416,64 +422,20 @@ function DashboardInner() {
               onResetFilters={handleResetFilters}
             />
 
-            {/* Center Area: Si no hay registros aún, muestra la pantalla de espera de subida */}
+            {/* Center Area: Muestra directo el dashboard oficial */}
             <div className="flex-1 flex flex-col gap-2 min-w-0 w-full">
-              {records.length === 0 && !isLoadingFile ? (
-                <div className="bg-gradient-to-b from-[#0b1f3b] via-[#0d274c] to-[#07162c] rounded-xl border-2 border-cyan-500/60 shadow-2xl p-6 sm:p-10 flex flex-col items-center justify-center text-center text-white my-auto min-h-[560px]">
-                  {/* Badge de estado */}
-                  <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/90 border border-cyan-400 text-cyan-300 text-xs font-mono font-bold mb-4 shadow-lg">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
-                    <span>EN ESPERA DE BASE DE DATOS ACTUALIZADA (20,635 FILAS)</span>
+              {isLoadingFile && (
+                <div className="bg-[#0b1f3b] rounded-lg border border-cyan-500/50 p-2.5 flex items-center justify-between text-xs text-cyan-200 animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
+                    <span>Cargando automáticamente base_de_datos.xlsx (20,635 registros)...</span>
                   </div>
-
-                  <div className="w-20 h-20 rounded-2xl bg-cyan-500/10 border-2 border-cyan-400/50 flex items-center justify-center text-cyan-300 mb-4 shadow-[0_0_25px_rgba(6,182,212,0.25)]">
-                    <FileSpreadsheet className="w-10 h-10" />
-                  </div>
-
-                  <h2 className="text-xl sm:text-2xl font-black uppercase text-white tracking-wider max-w-xl">
-                    Central de Monitoreo y Operativos Serenazgo
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-300 max-w-xl mt-2 leading-relaxed">
-                    Se ha ejecutado un <strong className="text-emerald-300 font-bold">reset completo de memoria y caché</strong> (localStorage e IndexedDB limpios, sin datos mockeados anteriores). La aplicación está a la espera de que suba la base de datos actualizada para indexar sus 20,635 filas.
-                  </p>
-
-                  {/* Acciones principales */}
-                  <div className="flex flex-col sm:flex-row items-center gap-3 mt-6 w-full max-w-md">
-                    <button
-                      type="button"
-                      id="btn-upload-waiting-primary"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs sm:text-sm uppercase tracking-wide shadow-xl flex items-center justify-center gap-2.5 transition-transform active:scale-95 cursor-pointer border border-emerald-300"
-                    >
-                      <Upload className="w-5 h-5 text-emerald-100" />
-                      <span>Subir Base de Datos (.xlsx / .csv)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="btn-check-public-waiting"
-                      onClick={loadOfficialFile}
-                      className="w-full sm:w-auto py-3 px-4 rounded-xl bg-[#0f2d52] hover:bg-[#163e70] border border-cyan-600/70 text-cyan-200 font-bold text-xs uppercase tracking-wide flex items-center justify-center gap-2 transition-colors cursor-pointer whitespace-nowrap"
-                      title="Intentar leer directamente /public/base_de_datos.xlsx si ya lo colocó en la carpeta"
-                    >
-                      <RefreshCw className="w-4 h-4 text-cyan-400" />
-                      <span>Leer /public/base_de_datos.xlsx</span>
-                    </button>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400 mt-4 flex items-center gap-1.5 font-mono">
-                    <span>💡 También puede usar la pestaña</span>
-                    <button
-                      onClick={() => setActiveTab('BD')}
-                      className="text-cyan-300 underline font-bold hover:text-white"
-                    >
-                      BD / EXCEL
-                    </button>
-                    <span>o el asistente de carga</span>
-                  </p>
+                  <span className="font-mono text-[10px] text-cyan-400">Indexando</span>
                 </div>
-              ) : (
-                <>
+              )}
+
+              <>
+                {/* 4 Iconic KPI Cards with Editable Titles */}
                   {/* 4 Iconic KPI Cards with Editable Titles */}
                   <KpiCards
                     filteredRecords={filteredRecords}
@@ -560,7 +522,6 @@ function DashboardInner() {
                     </div>
                   )}
                 </>
-              )}
             </div>
           </div>
         )}
@@ -648,6 +609,20 @@ function DashboardInner() {
         onClose={() => setIsReportModalOpen(false)}
         records={filteredRecords}
         totalRecordsCount={records.length}
+      />
+
+      <MonthlyReportModal
+        isOpen={isMonthlyReportModalOpen}
+        onClose={() => setIsMonthlyReportModalOpen(false)}
+        records={filteredRecords}
+        allRecords={records}
+        initialMes={filters.meses.length === 1 ? filters.meses[0] : 'SETIEMBRE'}
+      />
+
+      <AnnualConsolidatedModal
+        isOpen={isAnnualConsolidatedModalOpen}
+        onClose={() => setIsAnnualConsolidatedModalOpen(false)}
+        records={records}
       />
 
       <AlertsModal

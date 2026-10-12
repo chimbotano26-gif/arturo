@@ -31,11 +31,21 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   ShieldAlert,
+  FileDown,
+  FileText,
+  Table,
 } from 'lucide-react';
 import { EditableHeading } from './EditableHeading';
 import { DashboardTitles } from '../utils/useEditableTitles';
 import { exportComparativeSeptemberToExcel } from '../utils/excelHelper';
 import { MatrixHeatmapFilter } from './MatrixHeatmapFilter';
+import { MonthlyReportModal } from './MonthlyReportModal';
+import { AnnualConsolidatedModal } from './AnnualConsolidatedModal';
+import {
+  getMonthlyReportData,
+  exportMonthlyReportExcel,
+  exportMonthlyReportPDF,
+} from '../utils/reportGenerator';
 
 interface VistaResumenProps {
   records: IncidentRecord[];
@@ -238,9 +248,32 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
 }) => {
   const baseRecords = allRecords.length > 0 ? allRecords : records;
 
-  // Estado para excluir/sacar Setiembre del gráfico comparativo
-  const [excludeSetiembre, setExcludeSetiembre] = useState<boolean>(true);
+  // Estado para el gráfico comparativo anual (false = incluye todos los meses del año)
+  const [excludeSetiembre, setExcludeSetiembre] = useState<boolean>(false);
   const [showSetiembreModal, setShowSetiembreModal] = useState<boolean>(false);
+
+  // Estados para reportes ejecutivos del mes y consolidado anual
+  const [isMonthlyReportModalOpen, setIsMonthlyReportModalOpen] = useState<boolean>(false);
+  const [isAnnualConsolidatedModalOpen, setIsAnnualConsolidatedModalOpen] = useState<boolean>(false);
+  const [reportTargetMes, setReportTargetMes] = useState<MesType>(selectedMes || 'SETIEMBRE');
+
+  const handleOpenMonthlyReport = (mes?: MesType) => {
+    const target = mes || selectedMes || 'SETIEMBRE';
+    setReportTargetMes(target);
+    setIsMonthlyReportModalOpen(true);
+  };
+
+  const handleDownloadMonthExcelDirect = (mes?: MesType) => {
+    const target = mes || selectedMes || 'SETIEMBRE';
+    const repData = getMonthlyReportData(baseRecords, baseRecords, target);
+    exportMonthlyReportExcel(repData);
+  };
+
+  const handleDownloadMonthPDFDirect = (mes?: MesType) => {
+    const target = mes || selectedMes || 'SETIEMBRE';
+    const repData = getMonthlyReportData(baseRecords, baseRecords, target);
+    exportMonthlyReportPDF(repData);
+  };
 
   // Estados visuales solicitados para gráficos modernos y analíticos
   const [subsectorViewMode, setSubsectorViewMode] = useState<'BARS' | 'MOUNTAIN'>('BARS');
@@ -493,16 +526,16 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
     };
   }, [records]);
 
-  // 5. Calculate Comparativo Mes por Mes
+  // 5. Calculate Comparativo Mes por Mes (Abarca todos los meses del año: Enero a Diciembre)
   const monthlyData = useMemo(() => {
     const counts2026: Record<string, number> = {};
     baseRecords.forEach((r) => {
-      counts2026[r.mes] = (counts2026[r.mes] || 0) + 1;
+      if (r.mes) {
+        counts2026[r.mes] = (counts2026[r.mes] || 0) + 1;
+      }
     });
 
-    let list = COMPARATIVO_MENSUAL.filter(
-      (item) => item.mes !== 'OCTUBRE' && item.mes !== 'NOVIEMBRE' && item.mes !== 'DICIEMBRE'
-    );
+    let list = [...COMPARATIVO_MENSUAL];
     if (excludeSetiembre) {
       list = list.filter((item) => item.mes !== 'SETIEMBRE');
     }
@@ -517,6 +550,26 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
       };
     });
   }, [baseRecords, excludeSetiembre]);
+
+  // Lista completa de meses con registros para la barra "FILTRAR POR MES" (Enero a Octubre)
+  const filterBarMonths = useMemo(() => {
+    const counts2026: Record<string, number> = {};
+    baseRecords.forEach((r) => {
+      if (r.mes) {
+        counts2026[r.mes] = (counts2026[r.mes] || 0) + 1;
+      }
+    });
+
+    return COMPARATIVO_MENSUAL.map((item) => {
+      const dyn2026 = counts2026[item.mes] !== undefined ? counts2026[item.mes] : item.anio2026;
+      return {
+        mes: item.mes === 'SETIEMBRE' ? 'SET' : item.mes.slice(0, 3),
+        mesFull: item.mes as MesType,
+        val2025: item.anio2025,
+        val2026: dyn2026,
+      };
+    }).filter((m) => m.val2026 > 0);
+  }, [baseRecords]);
 
   // 6. Calculate Sector counts for Glass Beakers
   const sectorData = useMemo(() => {
@@ -581,57 +634,98 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
 
   return (
     <div className="flex-1 flex flex-col gap-3 min-w-0">
-      {/* 0. INTERACTIVE MONTH SELECTOR BAR */}
-      <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm p-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+      {/* 0. INTERACTIVE MONTH SELECTOR BAR CON DESCARGA DIRECTA Y CONSOLIDADO */}
+      <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm p-2 flex flex-col lg:flex-row items-center justify-between gap-2.5">
         <div className="flex items-center gap-1.5 text-xs font-black text-[#0f3460] uppercase shrink-0">
           <Calendar className="w-4 h-4 text-blue-700" />
           <span>FILTRAR POR MES:</span>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto w-full pb-1 sm:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full pb-1 lg:pb-0 scrollbar-none flex-1">
           <button
             id="month-btn-all"
             onClick={() => onSelectMes?.(null)}
-            className={`px-2.5 py-1 rounded text-[11px] font-black uppercase transition-all whitespace-nowrap border ${
+            className={`px-2.5 py-1 rounded text-[11px] font-black uppercase transition-all whitespace-nowrap border shrink-0 ${
               !selectedMes
                 ? 'bg-gradient-to-r from-[#124270] to-[#18538c] text-white border-[#124270] shadow-md ring-2 ring-blue-300'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
           >
-            AÑO COMPLETO ({baseRecords.length})
+            AÑO COMPLETO ({baseRecords.length.toLocaleString()})
           </button>
 
-          {monthlyData.map((m) => {
+          {filterBarMonths.map((m) => {
             const isSelected = selectedMes === m.mesFull;
             return (
               <button
                 key={m.mesFull}
                 id={`month-btn-${m.mes.toLowerCase()}`}
-                onClick={() => onSelectMes?.(isSelected ? null : m.mesFull)}
-                className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-all whitespace-nowrap border flex items-center gap-1 ${
+                onClick={() => {
+                  onSelectMes?.(m.mesFull);
+                  handleOpenMonthlyReport(m.mesFull);
+                }}
+                className={`group relative px-2.5 py-1 rounded text-[10.5px] font-bold uppercase transition-all whitespace-nowrap border flex items-center gap-1.5 shrink-0 ${
                   isSelected
                     ? 'bg-blue-700 text-white border-blue-800 shadow-md font-black ring-2 ring-cyan-400'
-                    : m.val2026 > 0
-                    ? 'bg-blue-50/90 text-blue-950 border-blue-200 hover:bg-blue-100 hover:border-blue-300 shadow-xs'
-                    : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                    : 'bg-blue-50/90 text-blue-950 border-blue-200 hover:bg-blue-100 hover:border-blue-300 shadow-xs'
                 }`}
-                title={`Ver datos detallados de ${m.mesFull} (2026: ${m.val2026} atenciones)`}
+                title={`Ver y descargar Ficha Oficial de ${m.mesFull} (2026: ${m.val2026.toLocaleString()} atenciones)`}
               >
                 <span>{m.mes}</span>
-                {m.val2026 > 0 && (
-                  <span className={`text-[9px] px-1 rounded-full font-mono ${isSelected ? 'bg-white text-blue-800' : 'bg-blue-200/70 text-blue-900 font-bold'}`}>
-                    {m.val2026}
-                  </span>
-                )}
+                <span
+                  className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                    isSelected ? 'bg-white text-blue-800' : 'bg-blue-200/80 text-blue-900'
+                  }`}
+                >
+                  {m.val2026.toLocaleString()}
+                </span>
+
+                {/* Ícono de descarga / ficha directa */}
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectMes?.(m.mesFull);
+                    handleOpenMonthlyReport(m.mesFull);
+                  }}
+                  className={`p-0.5 rounded hover:bg-black/20 text-slate-400 hover:text-white transition-opacity ${
+                    isSelected ? 'opacity-100 text-white' : 'opacity-70 group-hover:opacity-100'
+                  }`}
+                  title={`Descargar Ficha de ${m.mesFull} (.xlsx / .pdf)`}
+                >
+                  <Download className="w-3 h-3" />
+                </span>
               </button>
             );
           })}
         </div>
+
+        {/* Acceso directo a reportes consolidados y descargas del mes */}
+        <div className="flex items-center gap-1.5 shrink-0 w-full lg:w-auto justify-end border-t lg:border-t-0 pt-1 lg:pt-0 border-slate-200">
+          <button
+            id="btn-direct-download-month-report"
+            onClick={() => handleOpenMonthlyReport(selectedMes || 'SETIEMBRE')}
+            className="px-2.5 py-1 rounded text-[11px] font-black uppercase transition-all whitespace-nowrap border flex items-center gap-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white border-emerald-500 shadow-sm active:scale-95"
+            title="Abrir y Descargar Ficha Oficial del Mes en formato horizontal (Excel y PDF)"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            <span>Descargar Ficha del Mes</span>
+          </button>
+
+          <button
+            id="btn-direct-open-annual-matrix"
+            onClick={() => setIsAnnualConsolidatedModalOpen(true)}
+            className="px-2.5 py-1 rounded text-[11px] font-black uppercase transition-all whitespace-nowrap border flex items-center gap-1.5 bg-gradient-to-r from-indigo-700 to-blue-800 hover:from-indigo-600 hover:to-blue-700 text-white border-indigo-600 shadow-sm active:scale-95"
+            title="Ver y exportar Consolidado Anual (Matriz Cruzada Completa de 12 Meses)"
+          >
+            <Table className="w-3.5 h-3.5" />
+            <span>Consolidado Anual</span>
+          </button>
+        </div>
       </div>
 
-      {/* 0.1 ACTIVE MONTH NOTIFICATION BANNER */}
+      {/* 0.1 ACTIVE MONTH NOTIFICATION BANNER CON DESCARGA RÁPIDA EXCEL / PDF */}
       {selectedMes && (
-        <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white rounded-lg p-2.5 shadow-lg flex items-center justify-between border-2 border-cyan-400 animate-fadeIn">
+        <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white rounded-lg p-2.5 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-2 border-cyan-400 animate-fadeIn">
           <div className="flex items-center gap-2.5">
             <span className="flex h-3 w-3 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
@@ -641,12 +735,39 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
               <span>VISTA MENSUAL ACTIVA: </span>
               <span className="text-amber-300 font-black tracking-wider uppercase">{selectedMes} 2026</span>
               <span className="text-cyan-200 ml-2 font-normal text-xs">
-                ({records.length} atenciones registradas)
+                ({records.length.toLocaleString()} atenciones registradas)
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => handleDownloadMonthExcelDirect(selectedMes)}
+              className="px-2.5 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 transition-colors border border-emerald-500 shadow-xs active:scale-95"
+              title={`Descargar Reporte del Mes de ${selectedMes} en Excel (.xlsx)`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Excel (.xlsx)</span>
+            </button>
+
+            <button
+              onClick={() => handleDownloadMonthPDFDirect(selectedMes)}
+              className="px-2.5 py-1 rounded bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold flex items-center gap-1 transition-colors border border-rose-500 shadow-xs active:scale-95"
+              title={`Descargar Reporte del Mes de ${selectedMes} en PDF Oficial`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>PDF</span>
+            </button>
+
+            <button
+              onClick={() => handleOpenMonthlyReport(selectedMes)}
+              className="px-2.5 py-1 rounded bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold flex items-center gap-1 transition-colors border border-cyan-500 shadow-xs active:scale-95"
+              title="Abrir vista previa de la Ficha Ejecutiva del Mes"
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Ficha Ejecutiva</span>
+            </button>
+
             <button
               onClick={() => onSelectMes?.(null)}
               className="px-2.5 py-1 rounded bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1 transition-colors border border-white/30 shadow-xs"
@@ -1496,7 +1617,7 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
               <EditableHeading
                 value={titles?.comparativoMes || 'COMPARATIVO MES POR MES (AÑOS 2025 - 2026)'}
                 onSave={(val) => onUpdateTitle?.('comparativoMes', val)}
-                subtitle={titles?.comparativoMesSub || (excludeSetiembre ? 'Meses cerrados oficiales (Setiembre excluido del comparativo)' : 'Lectura rápida compacta Enero - Setiembre')}
+                subtitle={titles?.comparativoMesSub || (excludeSetiembre ? 'Meses evaluados (Setiembre excluido del comparativo)' : 'Lectura comparativa completa Enero - Diciembre')}
                 onSaveSubtitle={(val) => onUpdateTitle?.('comparativoMesSub', val)}
               />
 
@@ -1578,32 +1699,44 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
               </div>
             </div>
 
-            {/* Resumen Compacto de Cifras Mensuales (Banda Estilizada) */}
+            {/* Resumen Compacto de Cifras Mensuales (Banda Estilizada Dinámica para 12 Meses) */}
             <div className="w-full my-2 rounded-lg overflow-hidden border border-blue-900/40 shadow-2xs">
-              <div className="grid grid-cols-9 bg-[#0b2b52] text-white text-center divide-x divide-blue-800/60 py-1 px-0.5">
+              <div
+                className="bg-[#0b2b52] text-white text-center divide-x divide-blue-800/60 py-1 px-0.5"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${monthlyData.length}, minmax(0, 1fr))`,
+                }}
+              >
                 {monthlyData.map((m) => (
                   <div
                     key={`num-${m.mesFull}`}
                     onClick={() => onSelectMes?.(selectedMes === m.mesFull ? null : m.mesFull)}
-                    className="cursor-pointer hover:bg-blue-800/80 transition-colors py-0.5"
+                    className="cursor-pointer hover:bg-blue-800/80 transition-colors py-0.5 px-0.5"
                     title={`Año 2026: ${m.val2026.toLocaleString()} incidencias en ${m.mesFull}`}
                   >
-                    <span className="block text-[11px] sm:text-xs font-black font-mono tracking-tight text-cyan-100">
+                    <span className="block text-[10px] sm:text-[11px] font-black font-mono tracking-tight text-cyan-100 truncate">
                       {m.val2026.toLocaleString()}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-9 bg-slate-50 text-slate-800 text-center divide-x divide-slate-200 py-0.5 px-0.5 border-t border-slate-300">
+              <div
+                className="bg-slate-50 text-slate-800 text-center divide-x divide-slate-200 py-0.5 px-0.5 border-t border-slate-300"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${monthlyData.length}, minmax(0, 1fr))`,
+                }}
+              >
                 {monthlyData.map((m) => (
                   <div
                     key={`lbl-${m.mesFull}`}
                     onClick={() => onSelectMes?.(selectedMes === m.mesFull ? null : m.mesFull)}
-                    className={`cursor-pointer hover:bg-blue-100 transition-colors py-0.5 ${
+                    className={`cursor-pointer hover:bg-blue-100 transition-colors py-0.5 px-0.5 ${
                       selectedMes === m.mesFull ? 'bg-blue-200/90 font-black' : ''
                     }`}
                   >
-                    <span className="block text-[9.5px] sm:text-[10px] font-bold uppercase text-slate-700 tracking-tight">
+                    <span className="block text-[8.5px] sm:text-[9.5px] font-bold uppercase text-slate-700 tracking-tight truncate">
                       {m.mes}
                     </span>
                   </div>
@@ -1619,28 +1752,29 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
               if (comparativoChartType === 'ROWS') {
                 // Modo Vertical por Filas: Altamente estilizado, lectura rápida y sin ocupar todo el ancho
                 return (
-                  <div className="flex-1 w-full flex flex-col justify-between gap-1.5 py-1 min-h-[290px]">
+                  <div className="flex-1 w-full flex flex-col justify-between gap-1 sm:gap-1.5 py-1 min-h-[300px] max-h-[440px] overflow-y-auto pr-1">
                     {monthlyData.map((m) => {
                       const isSelected = selectedMes === m.mesFull;
+                      const isPending = m.val2026 === 0;
                       const diff = m.val2026 - m.val2025;
                       const pctDiff = m.val2025 > 0 ? Math.round((diff / m.val2025) * 100) : 0;
-                      const w2026 = Math.max(8, Math.min(100, (m.val2026 / yAxisMax) * 100));
+                      const w2026 = isPending ? 3 : Math.max(8, Math.min(100, (m.val2026 / yAxisMax) * 100));
                       const w2025 = Math.max(8, Math.min(100, (m.val2025 / yAxisMax) * 100));
 
                       return (
                         <div
                           key={m.mesFull}
                           onClick={() => onSelectMes?.(isSelected ? null : m.mesFull)}
-                          className={`flex items-center gap-2 px-2 py-1 rounded-md border transition-all cursor-pointer ${
+                          className={`flex items-center gap-1.5 sm:gap-2 px-2 py-0.5 sm:py-1 rounded-md border transition-all cursor-pointer ${
                             isSelected
                               ? 'bg-blue-50/90 border-blue-500 shadow-xs ring-1 ring-blue-500'
                               : 'bg-white hover:bg-slate-50 border-slate-200'
                           }`}
-                          title={`${m.mesFull}: 2026 = ${m.val2026.toLocaleString()} | 2025 = ${m.val2025.toLocaleString()} (Variación: ${pctDiff > 0 ? '+' : ''}${pctDiff}%)`}
+                          title={`${m.mesFull}: 2026 = ${isPending ? 'Pendiente' : m.val2026.toLocaleString()} | 2025 = ${m.val2025.toLocaleString()}${isPending ? '' : ` (Variación: ${pctDiff > 0 ? '+' : ''}${pctDiff}%)`}`}
                         >
                           {/* Badge de Mes */}
                           <span
-                            className={`w-9 text-center font-black text-[11px] uppercase py-0.5 rounded shrink-0 select-none ${
+                            className={`w-9 text-center font-black text-[10.5px] uppercase py-0.5 rounded shrink-0 select-none ${
                               isSelected ? 'bg-[#0f3460] text-white' : 'bg-slate-100 text-slate-800'
                             }`}
                           >
@@ -1653,12 +1787,12 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
                             <div className="flex items-center gap-1.5">
                               <div className="flex-1 bg-slate-100 rounded-full h-2.5 overflow-hidden">
                                 <div
-                                  className="bg-gradient-to-r from-[#062446] via-[#03518a] to-[#0284c7] h-full rounded-full transition-all duration-300"
+                                  className={`${isPending ? 'bg-slate-300' : 'bg-gradient-to-r from-[#062446] via-[#03518a] to-[#0284c7]'} h-full rounded-full transition-all duration-300`}
                                   style={{ width: `${w2026}%` }}
                                 />
                               </div>
-                              <span className="text-[11px] font-black font-mono text-blue-900 w-11 text-right shrink-0">
-                                {m.val2026.toLocaleString()}
+                              <span className={`text-[10.5px] font-black font-mono ${isPending ? 'text-slate-400' : 'text-blue-900'} w-11 text-right shrink-0`}>
+                                {isPending ? '-' : m.val2026.toLocaleString()}
                               </span>
                             </div>
 
@@ -1677,15 +1811,21 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
                           </div>
 
                           {/* Badge de Variación (%) */}
-                          <span
-                            className={`text-[9.5px] font-black font-mono px-1.5 py-0.5 rounded-full shrink-0 select-none ${
-                              pctDiff >= 0
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-rose-100 text-rose-800 border border-rose-300'
-                            }`}
-                          >
-                            {pctDiff >= 0 ? `+${pctDiff}%` : `${pctDiff}%`}
-                          </span>
+                          {isPending ? (
+                            <span className="text-[8.5px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full shrink-0 select-none border border-slate-200">
+                              Pend.
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9.5px] font-black font-mono px-1.5 py-0.5 rounded-full shrink-0 select-none ${
+                                pctDiff >= 0
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              }`}
+                            >
+                              {pctDiff >= 0 ? `+${pctDiff}%` : `${pctDiff}%`}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -1790,8 +1930,9 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
                   </div>
 
                   {monthlyData.map((m) => {
-                    const h2025 = Math.max(6, Math.min(88, (m.val2025 / yAxisMax) * 100));
-                    const h2026 = Math.max(6, Math.min(88, (m.val2026 / yAxisMax) * 100));
+                    const isPending = m.val2026 === 0;
+                    const h2025 = Math.max(5, Math.min(88, (m.val2025 / yAxisMax) * 100));
+                    const h2026 = isPending ? 3 : Math.max(5, Math.min(88, (m.val2026 / yAxisMax) * 100));
                     const isSelected = selectedMes === m.mesFull;
                     const diff = m.val2026 - m.val2025;
                     const pctDiff = m.val2025 > 0 ? Math.round((diff / m.val2025) * 100) : 0;
@@ -1800,27 +1941,33 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
                       <div
                         key={m.mesFull}
                         onClick={() => onSelectMes?.(isSelected ? null : m.mesFull)}
-                        className={`flex-1 flex flex-col items-center justify-end h-full cursor-pointer group px-0.5 sm:px-1 rounded-md transition-all ${
+                        className={`flex-1 flex flex-col items-center justify-end h-full cursor-pointer group px-0.5 rounded-md transition-all ${
                           isSelected ? 'bg-blue-100/90 ring-1 ring-blue-600 shadow-2xs' : 'hover:bg-blue-50/60'
                         }`}
-                        title={`${m.mesFull}: 2026 = ${m.val2026.toLocaleString()} | 2025 = ${m.val2025.toLocaleString()} (Variación: ${pctDiff > 0 ? '+' : ''}${pctDiff}%)`}
+                        title={`${m.mesFull}: 2026 = ${isPending ? 'Pendiente' : m.val2026.toLocaleString()} | 2025 = ${m.val2025.toLocaleString()}${isPending ? '' : ` (Variación: ${pctDiff > 0 ? '+' : ''}${pctDiff}%)`}`}
                       >
                         {/* Delta Tag compacto */}
-                        {m.val2025 > 0 && (
-                          <div className="text-[8px] sm:text-[9px] font-black font-mono text-emerald-800 bg-emerald-100/90 px-1 py-0.5 rounded-full mb-1 border border-emerald-300 shadow-2xs shrink-0 select-none">
-                            +{pctDiff}%
+                        {isPending ? (
+                          <div className="text-[7px] sm:text-[8px] font-bold font-mono text-slate-500 bg-slate-100 px-0.5 sm:px-1 py-0.2 rounded mb-0.5 shrink-0 select-none border border-slate-200">
+                            Pend.
+                          </div>
+                        ) : (
+                          <div className="text-[7.5px] sm:text-[8.5px] font-black font-mono text-emerald-800 bg-emerald-100/90 px-0.5 sm:px-1 py-0.2 rounded-full mb-0.5 border border-emerald-300 shadow-2xs shrink-0 select-none">
+                            {pctDiff >= 0 ? `+${pctDiff}%` : `${pctDiff}%`}
                           </div>
                         )}
 
-                        <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full relative pb-1">
+                        <div className="w-full flex items-end justify-center gap-0.5 sm:gap-1 h-full relative pb-1">
                           {/* 2026 Serenazgo Bar */}
                           <div className="flex flex-col items-center h-full justify-end">
-                            <span className="text-[9px] sm:text-[10px] font-black font-mono text-blue-900 select-none mb-0.5">
-                              {m.val2026}
+                            <span className="text-[8px] sm:text-[9.5px] font-black font-mono text-blue-900 select-none mb-0.5 truncate max-w-[28px] sm:max-w-none">
+                              {isPending ? '-' : m.val2026}
                             </span>
                             <div
-                              className={`w-3.5 sm:w-4.5 md:w-5 rounded-t relative transition-all duration-300 shadow-sm ${
-                                isSelected
+                              className={`w-2.5 sm:w-3.5 md:w-4 rounded-t relative transition-all duration-300 shadow-sm ${
+                                isPending
+                                  ? 'bg-slate-300'
+                                  : isSelected
                                   ? 'bg-gradient-to-t from-[#024a87] via-[#0284c7] to-[#38bdf8] ring-1 ring-cyan-400'
                                   : 'bg-gradient-to-t from-[#062446] via-[#03518a] to-[#0284c7] group-hover:brightness-125'
                               }`}
@@ -1832,11 +1979,11 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
 
                           {/* 2025 Histórico Bar */}
                           <div className="flex flex-col items-center h-full justify-end">
-                            <span className="text-[8.5px] sm:text-[9.5px] font-bold font-mono text-slate-600 select-none mb-0.5">
+                            <span className="text-[7.5px] sm:text-[9px] font-bold font-mono text-slate-600 select-none mb-0.5 truncate max-w-[28px] sm:max-w-none">
                               {m.val2025}
                             </span>
                             <div
-                              className="w-3.5 sm:w-4.5 md:w-5 bg-gradient-to-t from-[#475569] via-[#64748b] to-[#94a3b8] rounded-t relative group-hover:brightness-115 transition-all duration-300 shadow-2xs"
+                              className="w-2.5 sm:w-3.5 md:w-4 bg-gradient-to-t from-[#475569] via-[#64748b] to-[#94a3b8] rounded-t relative group-hover:brightness-115 transition-all duration-300 shadow-2xs"
                               style={{ height: `${h2025}%` }}
                             >
                               <div className="absolute top-0 inset-x-0 h-0.5 bg-white/30 rounded-t" />
@@ -1845,7 +1992,7 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
                         </div>
 
                         <span
-                          className={`text-[9.5px] sm:text-[10.5px] uppercase truncate font-black mt-1 select-none ${
+                          className={`text-[8.5px] sm:text-[10px] uppercase truncate font-black mt-1 select-none ${
                             isSelected ? 'text-blue-900 underline' : 'text-slate-700'
                           }`}
                         >
@@ -2635,6 +2782,22 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL FICHA EJECUTIVA OFICIAL DEL MES */}
+      <MonthlyReportModal
+        isOpen={isMonthlyReportModalOpen}
+        onClose={() => setIsMonthlyReportModalOpen(false)}
+        records={records}
+        allRecords={baseRecords}
+        initialMes={reportTargetMes}
+      />
+
+      {/* MODAL CONSOLIDADO GENERAL ANUAL (MATRIZ CRUZADA 12 MESES TIPO IMAGEN 2) */}
+      <AnnualConsolidatedModal
+        isOpen={isAnnualConsolidatedModalOpen}
+        onClose={() => setIsAnnualConsolidatedModalOpen(false)}
+        records={baseRecords}
+      />
     </div>
   );
 };

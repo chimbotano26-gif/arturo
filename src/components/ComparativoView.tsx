@@ -10,7 +10,7 @@ interface ComparativoViewProps {
 }
 
 export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => {
-  const [excludeSetiembre, setExcludeSetiembre] = useState<boolean>(true);
+  const [excludeSetiembre, setExcludeSetiembre] = useState<boolean>(false);
   const [showFichaSetiembre, setShowFichaSetiembre] = useState<boolean>(false);
 
   // Aggregate stats
@@ -40,11 +40,45 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
     return { ba, vm, manana, tarde, noche, centro, norte, sur, total: records.length || 1 };
   }, [records]);
 
+  // Dynamic mapping across all months of the year
+  const monthList = useMemo(() => {
+    const counts2026: Record<string, number> = {};
+    records.forEach((r) => {
+      if (r.mes) {
+        counts2026[r.mes] = (counts2026[r.mes] || 0) + 1;
+      }
+    });
+
+    let list = COMPARATIVO_MENSUAL.map((item) => {
+      const real2026 = counts2026[item.mes] !== undefined ? counts2026[item.mes] : item.anio2026;
+      return {
+        ...item,
+        anio2026: real2026,
+      };
+    });
+
+    if (excludeSetiembre) {
+      list = list.filter((item) => item.mes !== 'SETIEMBRE');
+    }
+
+    return list;
+  }, [records, excludeSetiembre]);
+
+  // Interannual stats across active months
+  const totalStats = useMemo(() => {
+    const activeMonths = monthList.filter((m) => m.anio2026 > 0);
+    const sum2025 = activeMonths.reduce((acc, m) => acc + m.anio2025, 0);
+    const sum2026 = activeMonths.reduce((acc, m) => acc + m.anio2026, 0);
+    const diff = sum2026 - sum2025;
+    const pct = sum2025 > 0 ? ((diff / sum2025) * 100).toFixed(1) : '0';
+    return { sum2025, sum2026, diff, pct, activeCount: activeMonths.length };
+  }, [monthList]);
+
   // Setiembre stats
   const setiembreStats = useMemo(() => {
     const setRecords = records.filter((r) => r.mes === 'SETIEMBRE');
-    const total2026 = setRecords.length > 0 ? setRecords.length : 242;
-    const total2025 = 210;
+    const total2026 = setRecords.length > 0 ? setRecords.length : 2292;
+    const total2025 = 4229;
     const diff = total2026 - total2025;
     const pct = Math.round((diff / total2025) * 100);
 
@@ -74,10 +108,6 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
     return { total2026, total2025, diff, pct, ba, vm, manana, tarde, noche, count: setRecords.length };
   }, [records]);
 
-  const monthList = excludeSetiembre
-    ? COMPARATIVO_MENSUAL.slice(0, 8)
-    : COMPARATIVO_MENSUAL.slice(0, 9);
-
   return (
     <div className="flex-1 flex flex-col gap-3 min-w-0 bg-white rounded-lg border-2 border-slate-300 shadow-sm p-4 text-slate-800">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-slate-200 gap-2">
@@ -93,7 +123,7 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
           </div>
           <EditableText
             idKey="comparativo_main_subtitle"
-            defaultText="Comparación estadística de productividad de operativos Serenazgo Nuevo Chimbote"
+            defaultText="Comparación estadística de productividad de operativos Serenazgo Nuevo Chimbote (Enero a Diciembre)"
             as="p"
             className="text-xs text-slate-500 mt-0.5"
           />
@@ -109,15 +139,15 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
                 ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'
                 : 'bg-blue-100 text-blue-900 border-blue-300 hover:bg-blue-200'
             }`}
-            title={excludeSetiembre ? 'Setiembre está excluido. Haz clic para incluirlo en la tabla' : 'Haz clic para sacar Setiembre de la tabla'}
+            title={excludeSetiembre ? 'Setiembre está excluido. Haz clic para incluir todos los meses' : 'Haz clic para aislar Setiembre'}
           >
             {excludeSetiembre ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 text-amber-700" />
-                <span>Setiembre Excluido (Ene - Ago)</span>
+                <span>Setiembre Excluido</span>
               </>
             ) : (
-              <span>Incluye Setiembre (Ene - Set)</span>
+              <span>Año Completo (Ene - Dic)</span>
             )}
           </button>
 
@@ -129,7 +159,7 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
             title="Extraer ficha comparativa específica de Setiembre"
           >
             <BarChart2 className="w-3.5 h-3.5 text-cyan-300" />
-            <span>Extraer Comparativo Setiembre</span>
+            <span>Ficha Comparativa Setiembre</span>
           </button>
 
           <button
@@ -148,13 +178,13 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-bold text-slate-500 uppercase">Variación Total 2025 vs 2026</div>
-            <div className="text-2xl font-black text-emerald-600 flex items-center gap-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase">Variación Comparativa 2025 vs 2026</div>
+            <div className={`text-2xl font-black flex items-center gap-1 ${Number(totalStats.pct) >= 0 ? 'text-emerald-600' : 'text-blue-900'}`}>
               <ArrowUpRight className="w-6 h-6 stroke-[3]" />
-              <span>+14.8%</span>
+              <span>{Number(totalStats.pct) >= 0 ? `+${totalStats.pct}%` : `${totalStats.pct}%`}</span>
             </div>
             <div className="text-[10px] text-slate-500">
-              {excludeSetiembre ? 'Período evaluado: Enero - Agosto (Meses cerrados)' : 'Período evaluado: Enero - Setiembre'}
+              {totalStats.sum2026.toLocaleString()} vs {totalStats.sum2025.toLocaleString()} atenciones ({totalStats.activeCount} meses registrados)
             </div>
           </div>
         </div>
@@ -173,7 +203,7 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
           <div>
             <div className="text-[11px] font-bold text-slate-500 uppercase">Día Pico de Intervenciones</div>
             <div className="text-2xl font-black text-rose-600">DOMINGO</div>
-            <div className="text-[10px] text-slate-500">400 atenciones promedio por fiestas y eventos</div>
+            <div className="text-[10px] text-slate-500">Mayor densidad operativa por eventos y fin de semana</div>
           </div>
         </div>
       </div>
@@ -183,10 +213,10 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
         <div className="bg-[#0f2c4c] text-white p-2.5 text-xs font-bold uppercase tracking-wider flex items-center justify-between">
           <span>
             Tabla Comparativa Mensual (2025 vs 2026) &bull;{' '}
-            {excludeSetiembre ? 'Enero a Agosto (Setiembre Excluido)' : 'Enero a Setiembre'}
+            {excludeSetiembre ? 'Año Evaluado (Setiembre Excluido)' : 'Año Completo (12 Meses: Enero a Diciembre)'}
           </span>
           <span className="text-[10px] text-cyan-300">
-            {excludeSetiembre ? 'Setiembre retirado por solicitud' : 'Setiembre incluido'}
+            {excludeSetiembre ? 'Setiembre retirado temporalmente' : 'Consolidado anual interanual'}
           </span>
         </div>
 
@@ -203,26 +233,54 @@ export const ComparativoView: React.FC<ComparativoViewProps> = ({ records }) => 
             </thead>
             <tbody className="divide-y divide-slate-200 font-semibold">
               {monthList.map((m) => {
+                const isPending = m.anio2026 === 0;
                 const diff = m.anio2026 - m.anio2025;
                 const pct = m.anio2025 > 0 ? Math.round((diff / m.anio2025) * 100) : 0;
                 const isSetiembre = m.mes === 'SETIEMBRE';
+                const isOctubre = m.mes === 'OCTUBRE';
+
                 return (
-                  <tr key={m.mes} className={isSetiembre ? 'bg-blue-50/70 hover:bg-blue-100/70' : 'hover:bg-slate-50'}>
+                  <tr key={m.mes} className={isSetiembre || isOctubre ? 'bg-blue-50/70 hover:bg-blue-100/70' : 'hover:bg-slate-50'}>
                     <td className="p-2 border-r border-slate-200 font-bold text-slate-800 flex items-center gap-1.5">
                       <span>{m.mes}</span>
+                      {isOctubre && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 font-black">
+                          EN CURSO
+                        </span>
+                      )}
                       {isSetiembre && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-200 text-blue-900 font-black">
                           ACTUAL
                         </span>
                       )}
                     </td>
-                    <td className="p-2 border-r border-slate-200 text-center text-slate-600 font-mono">{m.anio2025}</td>
-                    <td className="p-2 border-r border-slate-200 text-center font-bold text-blue-900 font-mono">{m.anio2026}</td>
-                    <td className="p-2 border-r border-slate-200 text-center text-emerald-600 font-mono">+{diff}</td>
+                    <td className="p-2 border-r border-slate-200 text-center text-slate-600 font-mono">{m.anio2025.toLocaleString()}</td>
+                    <td className="p-2 border-r border-slate-200 text-center font-bold text-blue-900 font-mono">
+                      {isPending ? '-' : m.anio2026.toLocaleString()}
+                    </td>
+                    <td className="p-2 border-r border-slate-200 text-center font-mono">
+                      {isPending ? (
+                        <span className="text-slate-400">-</span>
+                      ) : diff >= 0 ? (
+                        <span className="text-emerald-600">+{diff.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-rose-600">{diff.toLocaleString()}</span>
+                      )}
+                    </td>
                     <td className="p-2 text-center">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                        +{pct}%
-                      </span>
+                      {isPending ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                          Pendiente
+                        </span>
+                      ) : (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            pct >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {pct >= 0 ? `+${pct}%` : `${pct}%`}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );

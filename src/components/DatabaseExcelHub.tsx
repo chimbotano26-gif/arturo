@@ -16,8 +16,11 @@ import {
   FileCheck,
   Save,
   HardDrive,
+  Table,
+  FileText,
 } from 'lucide-react';
 import { IncidentRecord } from '../types';
+import { MESES_LIST } from '../data/mockData';
 import {
   parseAndConvertExcel,
   generateSampleTemplateExcel,
@@ -28,6 +31,12 @@ import {
   importBackupSnapshot,
 } from '../utils/persistenceHelper';
 import { EditableText } from './EditableText';
+import { AnnualConsolidatedModal } from './AnnualConsolidatedModal';
+import {
+  getAnnualConsolidatedData,
+  exportAnnualConsolidatedExcel,
+  exportAnnualConsolidatedPDF,
+} from '../utils/reportGenerator';
 
 interface DatabaseExcelHubProps {
   records: IncidentRecord[];
@@ -59,11 +68,27 @@ export const DatabaseExcelHub: React.FC<DatabaseExcelHubProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Sub-vista: Registros detallados o Consolidado Anual
+  const [hubTab, setHubTab] = useState<'REGISTROS' | 'CONSOLIDADO'>('REGISTROS');
+  const [matrixSearchTerm, setMatrixSearchTerm] = useState('');
+  const [isAnnualModalOpen, setIsAnnualModalOpen] = useState(false);
+
   // Table search & pagination
   const [searchTerm, setSearchTerm] = useState('');
   const [filterZona, setFilterZona] = useState('TODAS');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
+
+  // Matriz de datos consolidada anual 2026 (tipo Imagen 2)
+  const annualData = useMemo(() => {
+    return getAnnualConsolidatedData(records);
+  }, [records]);
+
+  const filteredMatrixRows = useMemo(() => {
+    if (!matrixSearchTerm.trim()) return annualData.rows;
+    const q = matrixSearchTerm.toLowerCase();
+    return annualData.rows.filter((r) => r.incidencia.toLowerCase().includes(q));
+  }, [annualData.rows, matrixSearchTerm]);
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
@@ -198,6 +223,34 @@ export const DatabaseExcelHub: React.FC<DatabaseExcelHubProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* BOTONES OFICIALES: CONSOLIDADO GENERAL ANUAL */}
+          <button
+            onClick={() => exportAnnualConsolidatedExcel(annualData)}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(16,185,129,0.3)] active:scale-95 border border-emerald-400"
+            title="Exportar Consolidado Anual completo a Excel (.xlsx)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>Exportar Consolidado Anual a Excel</span>
+          </button>
+
+          <button
+            onClick={() => exportAnnualConsolidatedPDF(annualData)}
+            className="px-3.5 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(244,63,94,0.3)] active:scale-95 border border-rose-400"
+            title="Exportar Consolidado Anual en formato PDF apaisado"
+          >
+            <FileText className="w-4 h-4 text-rose-200" />
+            <span>Exportar a PDF</span>
+          </button>
+
+          <button
+            onClick={() => setIsAnnualModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-[#07203a] hover:bg-[#0b2b4d] border border-cyan-500/40 text-cyan-200 font-bold text-xs flex items-center gap-1.5 transition-colors shadow"
+            title="Abrir vista emergente del Consolidado Anual"
+          >
+            <Table className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Ver Matriz Anual</span>
+          </button>
+
           {/* BOTÓN OFICIAL: SUBIR ARCHIVO EXCEL */}
           <button
             onClick={onOpenUploadModal ? onOpenUploadModal : () => document.getElementById('excel-file-input')?.click()}
@@ -334,47 +387,213 @@ export const DatabaseExcelHub: React.FC<DatabaseExcelHubProps> = ({
         </label>
       </div>
 
-      {/* Interactive Data Table Explorer */}
-      <div className="bg-[#0a182d] rounded-xl border border-cyan-500/30 p-3.5 shadow-xl flex flex-col gap-3">
-        {/* Table Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-2 border-b border-cyan-900/50">
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-black uppercase tracking-wider text-cyan-200">
-              EXPLORADOR DE REGISTROS ({filtered.length} de {records.length})
-            </h3>
-          </div>
+      {/* Sub-navegación entre Registros Detallados y Consolidado General Anual */}
+      <div className="flex items-center gap-2 border-b border-cyan-900/60 pb-2 flex-wrap">
+        <button
+          onClick={() => setHubTab('REGISTROS')}
+          className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 border ${
+            hubTab === 'REGISTROS'
+              ? 'bg-gradient-to-r from-blue-700 to-indigo-700 text-white border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+              : 'bg-[#08182b] text-slate-400 border-cyan-900/40 hover:bg-[#0c2440] hover:text-cyan-200'
+          }`}
+        >
+          <Database className="w-4 h-4 text-cyan-300" />
+          <span>REGISTROS DETALLADOS ({records.length.toLocaleString()})</span>
+        </button>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Filtrar por palabra clave..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#05101d] border border-cyan-800 rounded-lg text-cyan-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-              />
+        <button
+          onClick={() => setHubTab('CONSOLIDADO')}
+          className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-2 border ${
+            hubTab === 'CONSOLIDADO'
+              ? 'bg-gradient-to-r from-blue-700 to-indigo-700 text-white border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+              : 'bg-[#08182b] text-slate-400 border-cyan-900/40 hover:bg-[#0c2440] hover:text-cyan-200'
+          }`}
+        >
+          <Table className="w-4 h-4 text-cyan-300" />
+          <span>CONSOLIDADO GENERAL ANUAL 2026 (MATRIZ CRUZADA)</span>
+        </button>
+      </div>
+
+      {hubTab === 'CONSOLIDADO' ? (
+        /* VISTA DE LA MATRIZ CONSOLIDADA ANUAL (TIPO IMAGEN 2) */
+        <div className="bg-[#0a182d] rounded-xl border-2 border-cyan-500/40 p-4 shadow-xl flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-cyan-900/60">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-cyan-200 flex items-center gap-2">
+                <Table className="w-4 h-4 text-cyan-400" />
+                <span>CONSOLIDADO GENERAL DE INCIDENCIAS &bull; PERIODO ANUAL 2026</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Matriz comparativa de 12 meses por tipo de conflicto. Total: {annualData.totalGeneral.toLocaleString()} atenciones.
+              </p>
             </div>
 
-            <select
-              value={filterZona}
-              onChange={(e) => {
-                setFilterZona(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="bg-[#05101d] border border-cyan-800 rounded-lg px-2.5 py-1.5 text-xs text-cyan-200 font-bold focus:outline-none"
-            >
-              <option value="TODAS">Todas las Zonas</option>
-              <option value="ZONA CENTRO">Zona Centro</option>
-              <option value="ZONA NORTE">Zona Norte</option>
-              <option value="ZONA SUR">Zona Sur</option>
-            </select>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={matrixSearchTerm}
+                  onChange={(e) => setMatrixSearchTerm(e.target.value)}
+                  placeholder="Buscar en la matriz..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#05101d] border border-cyan-800 rounded-lg text-cyan-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <button
+                onClick={() => exportAnnualConsolidatedExcel(annualData)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow"
+                title="Exportar Consolidado Anual a Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Exportar Consolidado Anual a Excel</span>
+              </button>
+
+              <button
+                onClick={() => exportAnnualConsolidatedPDF(annualData)}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 shadow"
+                title="Exportar a PDF oficial"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Exportar a PDF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TABLA DE LA MATRIZ CRUZADA */}
+          <div className="overflow-x-auto border border-cyan-900/60 rounded-lg bg-[#050e1a]">
+            <table className="w-full text-left text-[11px] border-collapse min-w-[980px]">
+              <thead>
+                <tr className="bg-gradient-to-r from-[#07172e] via-[#0b2447] to-[#07172e] text-cyan-200 uppercase text-[10px] font-black tracking-wider border-b border-cyan-800">
+                  <th className="p-2 w-10 text-center border-r border-cyan-900">N°</th>
+                  <th className="p-2 min-w-[260px] border-r border-cyan-900">PRINCIPALES CONFLICTOS MÁS COMUNES</th>
+                  {MESES_LIST.map((m) => (
+                    <th key={m} className="p-2 text-center w-14 border-r border-cyan-900">
+                      {m.slice(0, 3)}
+                    </th>
+                  ))}
+                  <th className="p-2 text-center w-18 border-r border-cyan-900 bg-blue-950 font-black text-amber-300">
+                    TOTAL
+                  </th>
+                  <th className="p-2 text-center w-14 bg-blue-950 font-black text-emerald-300">
+                    %
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-cyan-950 text-slate-300">
+                {filteredMatrixRows.map((r, idx) => (
+                  <tr key={r.incidencia} className="hover:bg-cyan-950/40 transition-colors">
+                    <td className="p-1.5 text-center text-slate-500 font-mono font-bold border-r border-cyan-950">
+                      {idx + 1}
+                    </td>
+                    <td className="p-1.5 font-bold text-white border-r border-cyan-950 text-[10.5px]">
+                      {r.incidencia}
+                    </td>
+                    {MESES_LIST.map((m) => {
+                      const count = r.meses[m] || 0;
+                      return (
+                        <td
+                          key={m}
+                          className={`p-1.5 text-center font-mono border-r border-cyan-950 ${
+                            count > 0 ? 'font-bold text-cyan-200' : 'text-slate-600'
+                          }`}
+                        >
+                          {count > 0 ? count.toLocaleString() : '-'}
+                        </td>
+                      );
+                    })}
+                    <td className="p-1.5 text-center font-mono font-black text-amber-300 bg-cyan-950/30 border-r border-cyan-950">
+                      {r.total.toLocaleString()}
+                    </td>
+                    <td className="p-1.5 text-center font-mono font-bold text-slate-300 bg-cyan-950/20">
+                      {r.porcentaje.toFixed(2)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                {/* 1. TOTAL DE INCIDENCIAS POR MES */}
+                <tr className="bg-gradient-to-r from-blue-950 via-indigo-950 to-blue-950 text-white font-black border-t-2 border-cyan-600 text-[11px]">
+                  <td className="p-2 border-r border-cyan-800"></td>
+                  <td className="p-2 uppercase tracking-wider border-r border-cyan-800 text-cyan-200">
+                    TOTAL DE INCIDENCIAS POR MES DEL PERIODO {annualData.anio}
+                  </td>
+                  {MESES_LIST.map((m) => (
+                    <td key={`tot-${m}`} className="p-2 text-center font-mono font-black text-cyan-200 border-r border-cyan-800">
+                      {annualData.totalesPorMes[m] > 0 ? annualData.totalesPorMes[m].toLocaleString() : '-'}
+                    </td>
+                  ))}
+                  <td className="p-2 text-center font-mono font-black text-amber-300 text-xs border-r border-cyan-800 bg-black/40">
+                    {annualData.totalGeneral.toLocaleString()}
+                  </td>
+                  <td className="p-2 text-center font-mono font-black text-emerald-300 bg-black/40">
+                    100.00%
+                  </td>
+                </tr>
+                {/* 2. FILA DE PORCENTAJES */}
+                <tr className="bg-[#050e1a] text-slate-300 font-black border-t border-cyan-900 text-[10px]">
+                  <td className="p-1.5 border-r border-cyan-900"></td>
+                  <td className="p-1.5 uppercase tracking-wider border-r border-cyan-900 text-slate-400">
+                    PORCENTAJES
+                  </td>
+                  {MESES_LIST.map((m) => (
+                    <td key={`pct-${m}`} className="p-1.5 text-center font-mono text-cyan-300/80 border-r border-cyan-900">
+                      {annualData.totalesPorMes[m] > 0 ? `${annualData.porcentajesPorMes[m].toFixed(2)}%` : '-'}
+                    </td>
+                  ))}
+                  <td className="p-1.5 text-center font-mono text-slate-500 border-r border-cyan-900">
+                    -
+                  </td>
+                  <td className="p-1.5 text-center font-mono font-black text-emerald-400">
+                    100.00%
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
+      ) : (
+        /* Interactive Data Table Explorer */
+        <div className="bg-[#0a182d] rounded-xl border border-cyan-500/30 p-3.5 shadow-xl flex flex-col gap-3">
+          {/* Table Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pb-2 border-b border-cyan-900/50">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-xs font-black uppercase tracking-wider text-cyan-200">
+                EXPLORADOR DE REGISTROS ({filtered.length} de {records.length})
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 sm:w-64">
+                <Search className="w-3.5 h-3.5 text-cyan-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Filtrar por palabra clave..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-[#05101d] border border-cyan-800 rounded-lg text-cyan-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <select
+                value={filterZona}
+                onChange={(e) => {
+                  setFilterZona(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-[#05101d] border border-cyan-800 rounded-lg px-2.5 py-1.5 text-xs text-cyan-200 font-bold focus:outline-none"
+              >
+                <option value="TODAS">Todas las Zonas</option>
+                <option value="ZONA CENTRO">Zona Centro</option>
+                <option value="ZONA NORTE">Zona Norte</option>
+                <option value="ZONA SUR">Zona Sur</option>
+              </select>
+            </div>
+          </div>
 
         {/* Table Content */}
         <div className="overflow-x-auto border border-cyan-900/50 rounded-lg">
@@ -508,6 +727,14 @@ export const DatabaseExcelHub: React.FC<DatabaseExcelHubProps> = ({
           </div>
         </div>
       </div>
+      )}
+
+      {/* Modal Emergente para Consolidado Anual */}
+      <AnnualConsolidatedModal
+        isOpen={isAnnualModalOpen}
+        onClose={() => setIsAnnualModalOpen(false)}
+        records={records}
+      />
     </div>
   );
 };

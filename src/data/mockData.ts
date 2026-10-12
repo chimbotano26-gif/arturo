@@ -222,20 +222,20 @@ export const SECTOR_BARRIOS_MAP: Record<string, string[]> = {
   ],
 };
 
-// Comparativo histórico 2025 vs 2026 oficial (Valores exactos del usuario por mes - Tabla Oficial)
-// 2026: 806 + 2957 + 3136 + 2438 + 2075 + 1787 + 1941 + 2769 + 1849 = 19,758 atenciones
+// Comparativo histórico 2025 vs 2026 oficial (Valores exactos del consolidado distrital por mes - Tabla Oficial)
+// 2026: 850 + 3136 + 2957 + 2438 + 2075 + 1787 + 1941 + 2769 + 2292 + 390 = 20,635 atenciones
 // 2025: 3919 + 2844 + 4587 + 5301 + 4616 + 4423 + 4897 + 3979 + 4229 + 3490 + 2951 + 3204 = 48,440 atenciones
 export const COMPARATIVO_MENSUAL = [
-  { mes: 'ENERO', anio2025: 3919, anio2026: 806 },
-  { mes: 'FEBRERO', anio2025: 2844, anio2026: 2957 },
-  { mes: 'MARZO', anio2025: 4587, anio2026: 3136 },
+  { mes: 'ENERO', anio2025: 3919, anio2026: 850 },
+  { mes: 'FEBRERO', anio2025: 2844, anio2026: 3136 },
+  { mes: 'MARZO', anio2025: 4587, anio2026: 2957 },
   { mes: 'ABRIL', anio2025: 5301, anio2026: 2438 },
   { mes: 'MAYO', anio2025: 4616, anio2026: 2075 },
   { mes: 'JUNIO', anio2025: 4423, anio2026: 1787 },
   { mes: 'JULIO', anio2025: 4897, anio2026: 1941 },
   { mes: 'AGOSTO', anio2025: 3979, anio2026: 2769 },
-  { mes: 'SETIEMBRE', anio2025: 4229, anio2026: 1849 },
-  { mes: 'OCTUBRE', anio2025: 3490, anio2026: 0 },
+  { mes: 'SETIEMBRE', anio2025: 4229, anio2026: 2292 },
+  { mes: 'OCTUBRE', anio2025: 3490, anio2026: 390 },
   { mes: 'NOVIEMBRE', anio2025: 2951, anio2026: 0 },
   { mes: 'DICIEMBRE', anio2025: 3204, anio2026: 0 },
 ];

@@ -12,6 +12,8 @@ import {
   Lock,
   Unlock,
   LogOut,
+  FileDown,
+  Table,
 } from 'lucide-react';
 import { useAuth } from '../utils/authContext';
 import { SerenazgoLogo } from './SerenazgoLogo';
@@ -20,11 +22,15 @@ import { EditableText } from './EditableText';
 interface HeaderProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
+  onOpenMonthlyReport?: () => void;
+  onOpenAnnualConsolidated?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
+  onOpenMonthlyReport,
+  onOpenAnnualConsolidated,
 }) => {
   const { isAdmin, adminEmail, openAuthModal, logoutToViewer } = useAuth();
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -64,7 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Lado Izquierdo: Identidad Oficial y Escudo */}
           <div className="flex items-center gap-3">
             <div className="relative flex items-center justify-center shrink-0">
-              <SerenazgoLogo className="w-11 h-11 hover:scale-105 transition-transform drop-shadow-[0_0_10px_rgba(6,182,212,0.4)]" />
+              <SerenazgoLogo className="w-11 h-11 sm:w-12 sm:h-12 md:w-13 md:h-13 hover:scale-105 transition-transform drop-shadow-[0_0_12px_rgba(6,182,212,0.45)]" />
               <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border border-slate-900 shadow"></span>
@@ -129,7 +135,30 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* 2. Reloj Oficial Central */}
+            {/* 2. Botones de Reportes Oficiales en Cabecera */}
+            {onOpenMonthlyReport && (
+              <button
+                onClick={onOpenMonthlyReport}
+                className="px-2.5 py-1 rounded-lg bg-emerald-700/80 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-emerald-500/60 shrink-0"
+                title="Descargar Ficha Ejecutiva del Mes (Excel / PDF)"
+              >
+                <FileDown className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="hidden sm:inline">Reporte del Mes</span>
+              </button>
+            )}
+
+            {onOpenAnnualConsolidated && (
+              <button
+                onClick={onOpenAnnualConsolidated}
+                className="px-2.5 py-1 rounded-lg bg-indigo-700/80 hover:bg-indigo-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-indigo-500/60 shrink-0"
+                title="Ver y Exportar Consolidado General Anual (Matriz Completa de 12 Meses)"
+              >
+                <Table className="w-3.5 h-3.5 text-indigo-200" />
+                <span className="hidden sm:inline">Consolidado Anual</span>
+              </button>
+            )}
+
+            {/* 3. Reloj Oficial Central */}
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-[#0b1d38]/90 rounded-lg border border-cyan-900/60 text-xs shrink-0">
               <Clock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
               <div className="flex flex-col text-right leading-none">
