@@ -249,7 +249,7 @@ export const AdminAuthModal: React.FC = () => {
                         setPassword(e.target.value);
                         setError(false);
                       }}
-                      placeholder="Ingrese su clave secreta..."
+                      placeholder="Ingrese su clave: Admin2026* o Alianza26"
                       autoFocus
                       className="w-full bg-[#051120] border border-cyan-700 rounded px-3 py-2 pr-10 text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400 text-xs"
                     />
@@ -262,6 +262,9 @@ export const AdminAuthModal: React.FC = () => {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                  <p className="text-[10px] text-cyan-300/80 mt-1 flex items-center justify-between">
+                    <span>Clave oficial: <strong className="text-cyan-200 font-mono">Admin2026*</strong> o <strong className="text-cyan-200 font-mono">Alianza26</strong></span>
+                  </p>
                   {error && (
                     <div className="flex items-center gap-1.5 text-rose-400 text-[11px] font-bold mt-1.5 animate-shake">
                       <AlertCircle className="w-3.5 h-3.5" />

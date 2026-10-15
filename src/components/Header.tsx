@@ -14,6 +14,8 @@ import {
   LogOut,
   FileDown,
   Table,
+  PlusCircle,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '../utils/authContext';
 import { SerenazgoLogo } from './SerenazgoLogo';
@@ -24,6 +26,8 @@ interface HeaderProps {
   setActiveTab: (tab: ActiveTab) => void;
   onOpenMonthlyReport?: () => void;
   onOpenAnnualConsolidated?: () => void;
+  onOpenNewIncident?: () => void;
+  onOpenExcelModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,6 +35,8 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   onOpenMonthlyReport,
   onOpenAnnualConsolidated,
+  onOpenNewIncident,
+  onOpenExcelModal,
 }) => {
   const { isAdmin, adminEmail, openAuthModal, logoutToViewer } = useAuth();
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -95,28 +101,57 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Lado Derecho: Modo Lectura/Admin + Reloj Oficial */}
           <div className="flex items-center gap-2.5 flex-wrap justify-between lg:justify-end">
-            {/* 1. MODO LECTURA / ADMIN: Contenedor con espacio garantizado */}
-            <div className="shrink-0">
+            {/* 1. MODO LECTURA / ADMIN: Contenedor con espacio garantizado y botones de gestión */}
+            <div className="shrink-0 flex items-center gap-1.5 flex-wrap">
               {isAdmin ? (
-                <div className="flex items-center gap-1.5 bg-emerald-950/90 border border-emerald-500/70 rounded-lg px-2.5 py-1 text-xs shadow-sm">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div className="flex flex-col text-left leading-none">
-                    <span className="text-[10px] font-black text-emerald-300 uppercase tracking-tight">
-                      ADMINISTRADOR
-                    </span>
-                    <span className="text-[8px] text-emerald-400/80 font-mono truncate max-w-[110px]">
-                      {adminEmail}
-                    </span>
+                <>
+                  <div className="flex items-center gap-1.5 bg-emerald-950/90 border border-emerald-500/70 rounded-lg px-2.5 py-1 text-xs shadow-sm">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div className="flex flex-col text-left leading-none">
+                      <span className="text-[10px] font-black text-emerald-300 uppercase tracking-tight">
+                        ADMINISTRADOR
+                      </span>
+                      <span className="text-[8px] text-emerald-400/80 font-mono truncate max-w-[110px]">
+                        {adminEmail}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={logoutToViewer}
+                      title="Cerrar sesión de Administrador (cambiar a Modo Lectura)"
+                      className="ml-1 p-1 text-emerald-400 hover:text-white rounded hover:bg-emerald-900/60 transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={logoutToViewer}
-                    title="Cerrar sesión de Administrador (cambiar a Modo Lectura)"
-                    className="ml-1 p-1 text-emerald-400 hover:text-white rounded hover:bg-emerald-900/60 transition-colors"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+
+                  {/* Botones de Gestión visibles al estar en Modo Administrador */}
+                  {onOpenNewIncident && (
+                    <button
+                      type="button"
+                      id="btn-admin-nuevo-operativo"
+                      onClick={onOpenNewIncident}
+                      className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-cyan-700 to-blue-700 hover:from-cyan-600 hover:to-blue-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-cyan-400 shrink-0"
+                      title="Registrar nuevo operativo o incidencia oficial"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5 text-cyan-200" />
+                      <span>+ Nuevo Operativo</span>
+                    </button>
+                  )}
+
+                  {onOpenExcelModal && (
+                    <button
+                      type="button"
+                      id="btn-admin-subir-excel"
+                      onClick={onOpenExcelModal}
+                      className="px-2.5 py-1 rounded-lg bg-blue-900/90 hover:bg-blue-800 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-blue-400 shrink-0"
+                      title="Subir o actualizar base de datos Excel"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-blue-200" />
+                      <span>Subir Excel</span>
+                    </button>
+                  )}
+                </>
               ) : (
                 <button
                   type="button"

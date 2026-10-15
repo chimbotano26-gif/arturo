@@ -20,7 +20,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const ADMIN_EMAIL = 'darkane26@gmail.com';
+const ADMIN_EMAIL = 'chimbotano26@gmail.com';
 const STORAGE_KEY_ROLE = 'serenazgo_auth_role';
 const STORAGE_KEY_PASS = 'serenazgo_admin_secret_key';
 
@@ -66,23 +66,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const clean = password.trim();
     const stored = getStoredPassword();
 
-    // Si el usuario ya definió su propia clave secreta, solo acepta su clave secreta
-    if (stored) {
-      if (clean === stored) {
-        setRole('ADMIN');
-        setIsAuthModalOpen(false);
-        if (pendingCallback) {
-          pendingCallback();
-          setPendingCallback(null);
-        }
-        return true;
-      }
-      return false;
-    }
+    // Clave secreta oficial requerida por el usuario Administrador: Alianza26
+    const isMasterMatch = clean === 'Alianza26' || clean.toLowerCase() === 'alianza26';
+    const isStoredMatch = stored ? (clean === stored || clean.toLowerCase() === stored.toLowerCase()) : false;
 
-    // Clave secreta oficial requerida por el usuario Administrador exactamente: alianza201026
-    if (clean === 'alianza201026') {
+    if (isMasterMatch || isStoredMatch) {
       setRole('ADMIN');
+      try {
+        localStorage.setItem(STORAGE_KEY_ROLE, 'ADMIN');
+        // Si ingresó con la clave oficial Alianza26, resetea/actualiza la clave guardada en el navegador
+        if (isMasterMatch) {
+          localStorage.setItem(STORAGE_KEY_PASS, 'Alianza26');
+          setHasCustomPassword(true);
+        }
+      } catch {
+        // Ignore
+      }
       setIsAuthModalOpen(false);
       if (pendingCallback) {
         pendingCallback();
@@ -102,7 +101,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const stored = getStoredPassword();
-    const currentCorrect = stored ? cleanOld === stored : cleanOld === 'alianza201026';
+    const isMaster = cleanOld === 'Alianza26' || cleanOld.toLowerCase() === 'alianza26';
+    const currentCorrect = stored ? (cleanOld === stored || isMaster) : isMaster;
 
     if (!currentCorrect) {
       return { success: false, message: 'La clave actual no es correcta.' };
