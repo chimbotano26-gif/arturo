@@ -63,7 +63,7 @@ export async function exportIncidentsToPdf({
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 116, 139);
       doc.text(
-        `Central de Monitoreo y Serenazgo • Línea de Emergencia: (043) 313000 • Pág. ${i} de ${totalPages}`,
+        `Central de Monitoreo y Serenazgo • Emergencias (24H): 927 420 002 / 927 640 006 / 935 912 001 / 916 140 004 • Pág. ${i} de ${totalPages}`,
         pageWidth / 2,
         pageHeight - 8,
         { align: 'center' }

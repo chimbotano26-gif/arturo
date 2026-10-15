@@ -306,13 +306,25 @@ export const LiveDispatchFeed: React.FC<LiveDispatchFeedProps> = ({
           <div className="mt-4 p-3 bg-[#061120] border border-cyan-800/40 rounded-xl space-y-2">
             <div className="text-[10px] font-black uppercase text-cyan-300 tracking-wider flex items-center gap-1.5">
               <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
-              <span>CENTRAL DE OPERACIONES 24 HORAS</span>
+              <span>CENTRAL DE EMERGENCIAS (24 HORAS)</span>
             </div>
-            <div className="text-xs text-slate-300">
-              Teléfono: <strong className="text-white font-mono">(043) 313000</strong>
-            </div>
-            <div className="text-xs text-slate-300">
-              WhatsApp: <strong className="text-emerald-400 font-mono">+51 943 567 890</strong>
+            <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
+              <a href="tel:927420002" className="flex items-center gap-1 text-slate-300 hover:text-cyan-300 bg-[#091e36] px-2 py-1 rounded border border-cyan-800/60">
+                <PhoneCall className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span>927 420 002</span>
+              </a>
+              <a href="tel:927640006" className="flex items-center gap-1 text-slate-300 hover:text-cyan-300 bg-[#091e36] px-2 py-1 rounded border border-cyan-800/60">
+                <PhoneCall className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span>927 640 006</span>
+              </a>
+              <a href="tel:935912001" className="flex items-center gap-1 text-slate-300 hover:text-cyan-300 bg-[#091e36] px-2 py-1 rounded border border-cyan-800/60">
+                <PhoneCall className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span>935 912 001</span>
+              </a>
+              <a href="tel:916140004" className="flex items-center gap-1 text-slate-300 hover:text-cyan-300 bg-[#091e36] px-2 py-1 rounded border border-cyan-800/60">
+                <PhoneCall className="w-3 h-3 text-cyan-400 shrink-0" />
+                <span>916 140 004</span>
+              </a>
             </div>
             <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-800">
               Coordinación interinstitucional con Comisaría PNP Buenos Aires y Villa María.

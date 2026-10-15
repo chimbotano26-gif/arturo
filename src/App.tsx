@@ -55,6 +55,7 @@ import { ReportPrintModal } from './components/ReportPrintModal';
 import { MonthlyReportModal } from './components/MonthlyReportModal';
 import { AnnualConsolidatedModal } from './components/AnnualConsolidatedModal';
 import { AlertsModal } from './components/AlertsModal';
+import { IntroOverlay } from './components/IntroOverlay';
 import { Footer } from './components/Footer';
 import { RotateCcw, Save, HardDrive, Upload, FileSpreadsheet, Database, Trash2, AlertTriangle, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { SaveConfirmationToast } from './components/SaveConfirmationToast';
@@ -85,7 +86,7 @@ const INITIAL_FILTERS: FilterState = {
 };
 
 function DashboardInner() {
-  const { requireAdmin } = useAuth();
+  const { requireAdmin, isAdmin } = useAuth();
 
   // 1. Variable de estado que alimenta todo el dashboard: baseDeDatos (con alias records para compatibilidad)
   const [baseDeDatos, setBaseDeDatos] = useState<IncidentRecord[]>([]);
@@ -555,7 +556,8 @@ function DashboardInner() {
                 </div>
               )}
 
-              {!isLoadingFile && records.length === 0 && (
+              {/* Banner de tabla vacía - Solo para Administradores */}
+              {isAdmin && !isLoadingFile && records.length === 0 && (
                 <div className="bg-gradient-to-r from-blue-950 via-[#0a2540] to-cyan-950 rounded-lg border-2 border-cyan-600/60 p-3 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-cyan-100 shadow-md">
                   <div className="flex items-center gap-2.5">
                     <div className="w-3 h-3 rounded-full bg-emerald-400 animate-ping shrink-0" />
@@ -575,7 +577,7 @@ function DashboardInner() {
                     <button
                       type="button"
                       onClick={() => loadSupabaseData()}
-                      className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-cyan-400"
+                      className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-cyan-400 cursor-pointer"
                       title="Volver a consultar registros en Supabase"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
@@ -584,7 +586,7 @@ function DashboardInner() {
                     <button
                       type="button"
                       onClick={loadLocalFallback}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-emerald-400"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-emerald-400 cursor-pointer"
                       title="Cargar los 20,635 registros del archivo Excel base_de_datos.xlsx como demostración"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
@@ -596,14 +598,15 @@ function DashboardInner() {
 
               <>
                 {/* 4 Iconic KPI Cards with Editable Titles */}
-                  <KpiCards
-                    filteredRecords={filteredRecords}
-                    totalRecordsCount={records.length}
-                    titles={titles}
-                    onUpdateTitle={updateTitle}
-                  />
+                <KpiCards
+                  filteredRecords={filteredRecords}
+                  totalRecordsCount={records.length}
+                  titles={titles}
+                  onUpdateTitle={updateTitle}
+                />
 
-                  {/* Barra de Estado Oficial Limpia */}
+                {/* Barra de Estado Oficial y Sincronización Supabase - Visible EXCLUSIVAMENTE si isAdmin === true */}
+                {isAdmin && (
                   <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 text-slate-700 font-medium">
                       <span className="flex h-2.5 w-2.5 relative">
@@ -641,7 +644,7 @@ function DashboardInner() {
                       <button
                         type="button"
                         onClick={() => loadSupabaseData()}
-                        className="text-[11px] text-cyan-800 hover:text-cyan-950 font-bold flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 px-2.5 py-1 rounded border border-cyan-300 transition-colors"
+                        className="text-[11px] text-cyan-800 hover:text-cyan-950 font-bold flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 px-2.5 py-1 rounded border border-cyan-300 transition-colors cursor-pointer"
                         title="Consultar nuevamente la tabla registros en Supabase"
                       >
                         <RefreshCw className="w-3 h-3 text-cyan-600" />
@@ -651,7 +654,7 @@ function DashboardInner() {
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-[11px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 hover:underline ml-1"
+                        className="text-[11px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 hover:underline ml-1 cursor-pointer"
                         title="Subir o actualizar base de datos manual"
                       >
                         <Upload className="w-3 h-3" />
@@ -662,7 +665,7 @@ function DashboardInner() {
                         <button
                           type="button"
                           onClick={resetTitles}
-                          className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-2"
+                          className="text-[11px] text-rose-700 hover:text-rose-900 font-bold flex items-center gap-1 hover:underline ml-2 cursor-pointer"
                           title="Restablecer todos los títulos modificados a los originales"
                         >
                           <RotateCcw className="w-3 h-3" />
@@ -671,6 +674,7 @@ function DashboardInner() {
                       )}
                     </div>
                   </div>
+                )}
 
                   {/* CENTER CONTENT: Either 7 Charts OR Map in the Middle */}
                   {centerMode === 'GRAFICOS' ? (
@@ -997,6 +1001,9 @@ function DashboardInner() {
 
       {/* Admin Authentication & RBAC Modal */}
       <AdminAuthModal />
+
+      {/* Pantalla de Presentación Animada e Interactiva */}
+      <IntroOverlay />
     </div>
   );
 }

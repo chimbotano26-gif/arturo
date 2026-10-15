@@ -25,14 +25,8 @@ const STORAGE_KEY_ROLE = 'serenazgo_auth_role';
 const STORAGE_KEY_PASS = 'serenazgo_admin_secret_key';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [role, setRole] = useState<UserRole>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_ROLE);
-      return saved === 'ADMIN' ? 'ADMIN' : 'VIEWER';
-    } catch {
-      return 'VIEWER';
-    }
-  });
+  // Por defecto al entrar o al recargar la página: MODO VISITANTE / LECTURA ('VIEWER')
+  const [role, setRole] = useState<UserRole>('VIEWER');
 
   const [hasCustomPassword, setHasCustomPassword] = useState<boolean>(() => {
     try {

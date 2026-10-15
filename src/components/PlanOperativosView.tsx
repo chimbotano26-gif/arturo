@@ -1171,7 +1171,7 @@ export const PlanOperativosView: React.FC = () => {
 
               {/* Central Base info */}
               <div className="mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-500 text-center">
-                Subgerencia de Serenazgo y Seguridad Ciudadana &bull; Central de Emergencias: (043) 313000
+                Subgerencia de Serenazgo y Seguridad Ciudadana &bull; Central de Emergencias (24 Horas): 927 420 002 &bull; 927 640 006 &bull; 935 912 001 &bull; 916 140 004
               </div>
             </div>
           </div>
