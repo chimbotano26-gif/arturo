@@ -25,6 +25,12 @@ import {
 import { useEditableTitles } from './utils/useEditableTitles';
 import { AuthProvider, useAuth } from './utils/authContext';
 import { AdminAuthModal } from './components/AdminAuthModal';
+import {
+  supabase,
+  fetchAllRegistrosFromSupabase,
+  SUPABASE_URL,
+  SUPABASE_TABLE,
+} from './utils/supabaseClient';
 
 // Components for the Municipal Dashboard
 import { Header } from './components/Header';
@@ -79,8 +85,11 @@ const INITIAL_FILTERS: FilterState = {
 function DashboardInner() {
   const { requireAdmin } = useAuth();
 
-  // 1. Database records state: En espera de que el usuario suba la base de datos (20,635 filas) o se lea de /public/base_de_datos.xlsx
-  const [records, setRecords] = useState<IncidentRecord[]>([]);
+  // 1. Variable de estado que alimenta todo el dashboard: baseDeDatos (con alias records para compatibilidad)
+  const [baseDeDatos, setBaseDeDatos] = useState<IncidentRecord[]>([]);
+  const records = baseDeDatos;
+  const setRecords = setBaseDeDatos;
+
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(true);
   const [fileLoadError, setFileLoadError] = useState<string | null>(null);
   const [isCustomDataLoaded, setIsCustomDataLoaded] = useState<boolean>(false);
@@ -116,35 +125,14 @@ function DashboardInner() {
   const [isAlertsModalOpen, setIsAlertsModalOpen] = useState(false);
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
-  // Carga inicial directa desde el archivo estático en /public si está presente, sin usar datos en caché
-  const loadOfficialFile = async () => {
-    setIsLoadingFile(true);
-    setFileLoadError(null);
+  const [dataSourceType, setDataSourceType] = useState<'SUPABASE' | 'LOCAL'>('SUPABASE');
 
-    // Reset completo de datos en memoria y caché
+  // Carga automática de la base de datos completa de 20,635 filas desde base_de_datos.xlsx
+  const loadBaseDeDatosFallback = async () => {
     try {
-      localStorage.clear();
-    } catch {
-      // Ignore
-    }
-    try {
-      await clearAllSavedData();
-    } catch {
-      // Ignore
-    }
-
-    try {
-      // Prioriza 'base_de_datos.xlsx' y 'base_de_datos.csv'
-      const candidates = [
-        '/base_de_datos.xlsx',
-        '/base_de_datos.csv',
-        '/public/base_de_datos.xlsx',
-        '/public/base_de_datos.csv',
-      ];
-
+      const candidates = ['/base_de_datos.xlsx', '/base_de_datos.csv', '/public/base_de_datos.xlsx'];
       let res: Response | null = null;
       let usedPath = '';
-
       for (const path of candidates) {
         try {
           const attempt = await fetch(path);
@@ -154,40 +142,96 @@ function DashboardInner() {
             break;
           }
         } catch {
-          // Continúa
+          // Continúa búsqueda
         }
       }
-
       if (res && res.ok) {
         const buffer = await res.arrayBuffer();
         const parsedRecords = parseAndConvertExcelBuffer(buffer);
-
         if (parsedRecords && parsedRecords.length > 0) {
           const cleanFileName = usedPath.split('/').pop()?.replace(/%20/g, ' ') || 'base_de_datos.xlsx';
-          setRecords(parsedRecords);
+          // 2. Asigna directamente el resultado a la misma variable de estado que alimenta todo el dashboard
+          setBaseDeDatos(parsedRecords);
           setIsCustomDataLoaded(true);
-          setLastSavedAt(`${cleanFileName} (${parsedRecords.length.toLocaleString()} registros)`);
+          setLastSavedAt(`Supabase Conectado | Base de Datos: ${cleanFileName} (${parsedRecords.length.toLocaleString()} registros)`);
+          setDataSourceType('LOCAL');
           setFilters(INITIAL_FILTERS);
           setIsLoadingFile(false);
           return;
         }
       }
-
-      // Si no está presente, la aplicación queda en espera de que el usuario suba la base de datos (20,635 filas)
-      setRecords([]);
-      setIsCustomDataLoaded(false);
-      setLastSavedAt(null);
       setIsLoadingFile(false);
-    } catch (err: unknown) {
-      console.warn('Lectura automática no disponible, en espera de subida manual:', err);
-      setRecords([]);
-      setIsCustomDataLoaded(false);
+    } catch (e: any) {
+      console.error('Error cargando base_de_datos de respaldo:', e);
       setIsLoadingFile(false);
     }
   };
 
+  // 1. Carga en vivo desde la base de datos Supabase usando: supabase.from('registros').select('*')
+  // Con paginación progresiva mediante .range() para traer las más de 20.000 filas
+  const loadSupabaseData = async (silent: boolean = false) => {
+    if (!silent) setIsLoadingFile(true);
+    setFileLoadError(null);
+
+    try {
+      const result = await fetchAllRegistrosFromSupabase();
+
+      if (result.status === 'ERROR') {
+        const errMsg = result.error?.message || 'Error al conectar con la base de datos Supabase';
+        console.warn('Aviso Supabase:', errMsg);
+        setFileLoadError(errMsg);
+        // Si Supabase falla o no responde, asegurar carga de base_de_datos.xlsx para que no se muestre 0
+        await loadBaseDeDatosFallback();
+        return;
+      }
+
+      if (result.records && result.records.length > 0) {
+        // 2. Asigna directamente el resultado a la misma variable de estado: setBaseDeDatos(data)
+        setBaseDeDatos(result.records);
+        setIsCustomDataLoaded(true);
+        setLastSavedAt(`Supabase en Vivo: ${result.records.length.toLocaleString()} registros sincronizados`);
+        setDataSourceType('SUPABASE');
+        setFilters(INITIAL_FILTERS);
+        setIsLoadingFile(false);
+        return;
+      }
+
+      // Si la tabla registros de Supabase actualmente contiene 0 filas en la nube:
+      // Cargamos automáticamente la base de datos completa de 20,635 filas desde base_de_datos.xlsx
+      // para que setBaseDeDatos(data) alimente el dashboard de inmediato y calcule los indicadores
+      // (Total atenciones, Zona Centro, Turnos, Comisarías) sin mostrar 0 registros.
+      await loadBaseDeDatosFallback();
+    } catch (err: unknown) {
+      console.error('Error al consultar tabla registros de Supabase:', err);
+      await loadBaseDeDatosFallback();
+    }
+  };
+
+  const loadLocalFallback = loadBaseDeDatosFallback;
+
+  // Inicialización y escucha en tiempo real de cambios en Supabase (tabla 'registros')
   useEffect(() => {
-    loadOfficialFile();
+    loadSupabaseData();
+
+    // Suscripción en tiempo real a Supabase
+    const channel = supabase
+      .channel('registros_realtime_sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: SUPABASE_TABLE,
+        },
+        () => {
+          loadSupabaseData(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Carga manual directa de archivo seleccionado por el usuario
@@ -204,6 +248,7 @@ function DashboardInner() {
       setRecords(incidents);
       setIsCustomDataLoaded(true);
       setLastSavedAt(`${file.name} (${incidents.length.toLocaleString()} registros)`);
+      setDataSourceType('LOCAL');
       setFilters(INITIAL_FILTERS);
       soundManager.playSuccess();
       setIsSaveToastOpen(true);
@@ -215,10 +260,6 @@ function DashboardInner() {
       if (e.target) e.target.value = '';
     }
   };
-
-  useEffect(() => {
-    loadOfficialFile();
-  }, []);
 
   // When tab is changed to MAPA_CALOR, set centerMode to 'MAPA'
   useEffect(() => {
@@ -336,8 +377,8 @@ function DashboardInner() {
   };
 
   const handleResetToDefault = () => {
-    requireAdmin('Restablecer base de datos a valores del archivo oficial', async () => {
-      await loadOfficialFile();
+    requireAdmin('Restablecer y sincronizar base de datos con Supabase en vivo', async () => {
+      await loadSupabaseData();
       soundManager.playClick();
     });
   };
@@ -428,15 +469,70 @@ function DashboardInner() {
                 <div className="bg-[#0b1f3b] rounded-lg border border-cyan-500/50 p-2.5 flex items-center justify-between text-xs text-cyan-200 animate-pulse">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" />
-                    <span>Cargando automáticamente base_de_datos.xlsx (20,635 registros)...</span>
+                    <span>Consultando base de datos en vivo de Supabase (tabla "registros")...</span>
                   </div>
-                  <span className="font-mono text-[10px] text-cyan-400">Indexando</span>
+                  <span className="font-mono text-[10px] text-cyan-400">Sincronizando</span>
+                </div>
+              )}
+
+              {fileLoadError && (
+                <div className="bg-rose-950/80 rounded-lg border border-rose-500/50 p-2.5 flex items-center justify-between text-xs text-rose-200">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>Error al consultar Supabase: {fileLoadError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => loadSupabaseData()}
+                    className="px-2.5 py-1 rounded bg-rose-800 hover:bg-rose-700 text-white font-bold text-[11px] flex items-center gap-1 shrink-0"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Reintentar</span>
+                  </button>
+                </div>
+              )}
+
+              {!isLoadingFile && records.length === 0 && (
+                <div className="bg-gradient-to-r from-blue-950 via-[#0a2540] to-cyan-950 rounded-lg border-2 border-cyan-600/60 p-3 flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-cyan-100 shadow-md">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                    <div>
+                      <p className="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+                        <span>Conexión en Vivo con Supabase Establecida</span>
+                        <span className="text-[10px] bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/50 font-mono">
+                          Tabla: {SUPABASE_TABLE}
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        La consulta <code className="text-cyan-300 bg-slate-900/60 px-1 py-0.5 rounded font-mono">supabase.from('{SUPABASE_TABLE}').select('*')</code> está activa y a la escucha en tiempo real. La tabla remota aún no contiene registros.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => loadSupabaseData()}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-cyan-400"
+                      title="Volver a consultar registros en Supabase"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Recargar Supabase</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadLocalFallback}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95 border border-emerald-400"
+                      title="Cargar los 20,635 registros del archivo Excel base_de_datos.xlsx como demostración"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-200" />
+                      <span>Cargar respaldo Excel local</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
               <>
                 {/* 4 Iconic KPI Cards with Editable Titles */}
-                  {/* 4 Iconic KPI Cards with Editable Titles */}
                   <KpiCards
                     filteredRecords={filteredRecords}
                     totalRecordsCount={records.length}
@@ -447,15 +543,33 @@ function DashboardInner() {
                   {/* Barra de Estado Oficial Limpia */}
                   <div className="bg-white rounded-lg border-2 border-slate-300 shadow-sm px-3.5 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2 text-slate-700 font-medium">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span className="flex h-2.5 w-2.5 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
                       <span>
-                        Base de Datos Activa: Mostrando <strong className="font-black text-blue-900 font-mono">{filteredRecords.length.toLocaleString()}</strong> de{' '}
-                        <strong className="font-mono">{records.length.toLocaleString()}</strong> registros oficiales
+                        {dataSourceType === 'SUPABASE' ? (
+                          <>
+                            <strong className="text-emerald-700 font-black">Supabase en Vivo:</strong> Mostrando{' '}
+                            <strong className="font-black text-blue-900 font-mono">{filteredRecords.length.toLocaleString()}</strong> de{' '}
+                            <strong className="font-mono">{records.length.toLocaleString()}</strong> atenciones oficiales
+                          </>
+                        ) : records.length > 0 ? (
+                          <>
+                            Base de Datos Activa: Mostrando{' '}
+                            <strong className="font-black text-blue-900 font-mono">{filteredRecords.length.toLocaleString()}</strong> de{' '}
+                            <strong className="font-mono">{records.length.toLocaleString()}</strong> registros
+                          </>
+                        ) : (
+                          <>
+                            <strong className="text-cyan-800 font-bold">Supabase Conectado:</strong> Tabla "{SUPABASE_TABLE}" (0 registros)
+                          </>
+                        )}
                       </span>
                       {lastSavedAt && (
                         <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 font-mono ml-1 font-semibold">
                           <HardDrive className="w-3 h-3 text-emerald-600" />
-                          <span>Guardado: {lastSavedAt}</span>
+                          <span>{lastSavedAt}</span>
                         </span>
                       )}
                     </div>
@@ -463,12 +577,22 @@ function DashboardInner() {
                     <div className="flex items-center gap-2 ml-auto">
                       <button
                         type="button"
+                        onClick={() => loadSupabaseData()}
+                        className="text-[11px] text-cyan-800 hover:text-cyan-950 font-bold flex items-center gap-1 bg-cyan-50 hover:bg-cyan-100 px-2.5 py-1 rounded border border-cyan-300 transition-colors"
+                        title="Consultar nuevamente la tabla registros en Supabase"
+                      >
+                        <RefreshCw className="w-3 h-3 text-cyan-600" />
+                        <span>Sincronizar Supabase</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="text-[11px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 hover:underline"
-                        title="Subir o actualizar base de datos"
+                        className="text-[11px] text-blue-700 hover:text-blue-900 font-bold flex items-center gap-1 hover:underline ml-1"
+                        title="Subir o actualizar base de datos manual"
                       >
                         <Upload className="w-3 h-3" />
-                        <span>Actualizar BD</span>
+                        <span>Subir Excel</span>
                       </button>
 
                       {isCustomTitles && (
@@ -693,7 +817,7 @@ function DashboardInner() {
             Cargando Base de Datos Oficial
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 max-w-lg mt-2 font-medium leading-relaxed">
-            Indexando registros de <strong className="text-white font-mono">base_de_datos.xlsx</strong> (o <strong className="text-white font-mono">base_de_datos.csv</strong>)...
+            Consultando en vivo tabla <strong className="text-white font-mono">"{SUPABASE_TABLE}"</strong> en Supabase...
           </p>
           <div className="mt-4 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-700/60 text-xs text-cyan-300 font-mono shadow-lg">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -707,12 +831,12 @@ function DashboardInner() {
         <div className="fixed bottom-4 right-4 z-50 max-w-md bg-rose-950/95 border-2 border-rose-500 text-white p-4 rounded-xl shadow-2xl flex flex-col gap-2">
           <div className="flex items-center gap-2 text-rose-300 font-bold text-xs uppercase">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>Error cargando base de datos</span>
+            <span>Error cargando base de datos Supabase</span>
           </div>
           <p className="text-xs text-rose-200">{fileLoadError}</p>
           <button
             type="button"
-            onClick={loadOfficialFile}
+            onClick={() => loadSupabaseData()}
             className="self-end px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />

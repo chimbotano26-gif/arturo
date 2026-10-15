@@ -563,7 +563,7 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
     return COMPARATIVO_MENSUAL.map((item) => {
       const dyn2026 = counts2026[item.mes] !== undefined ? counts2026[item.mes] : item.anio2026;
       return {
-        mes: item.mes === 'SETIEMBRE' ? 'SET' : item.mes.slice(0, 3),
+        mes: item.mes === 'SETIEMBRE' ? 'SET' : item.mes === 'OCTUBRE' ? 'OCT' : item.mes.slice(0, 3),
         mesFull: item.mes as MesType,
         val2025: item.anio2025,
         val2026: dyn2026,
@@ -608,9 +608,12 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
   const monthDetail = useMemo(() => {
     if (!selectedMes) return null;
 
+    const safeRecs = Array.isArray(records) ? records : [];
     const incMap: Record<string, number> = {};
-    records.forEach((r) => {
-      incMap[r.tipoIncidencia] = (incMap[r.tipoIncidencia] || 0) + 1;
+    safeRecs.forEach((r) => {
+      if (!r) return;
+      const t = r.tipoIncidencia || r.incidencia || 'OTROS';
+      incMap[t] = (incMap[t] || 0) + 1;
     });
     const topIncidencias = Object.entries(incMap)
       .sort((a, b) => b[1] - a[1])
@@ -618,17 +621,19 @@ export const VistaResumen: React.FC<VistaResumenProps> = ({
       .map(([tipo, count]) => ({
         tipo,
         count,
-        pct: Math.round((count / (records.length || 1)) * 100),
+        pct: Math.round((count / (safeRecs.length || 1)) * 100),
       }));
 
-    const topDay = [...diaData.days].sort((a, b) => b.count - a.count)[0];
-    const topSub = [...subsectorData.items].sort((a, b) => b.count - a.count)[0];
+    const daysList = Array.isArray(diaData?.days) ? diaData.days : [];
+    const topDay = [...daysList].sort((a, b) => (b?.count || 0) - (a?.count || 0))[0] || { name: 'N/A', count: 0 };
+    const itemsList = Array.isArray(subsectorData?.items) ? subsectorData.items : [];
+    const topSub = [...itemsList].sort((a, b) => (b?.count || 0) - (a?.count || 0))[0] || { code: 'S/D', name: 'Sin datos', count: 0 };
 
     return {
       topIncidencias,
       topDay,
       topSub,
-      totalMes: records.length,
+      totalMes: safeRecs.length,
     };
   }, [selectedMes, records, diaData, subsectorData]);
 

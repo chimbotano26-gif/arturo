@@ -57,15 +57,18 @@ const MESES_DIAS_2026: Record<string, number> = {
 // CÁLCULO DE DATOS: FICHA MENSUAL OFICIAL (TOTALIDAD DE INCIDENCIAS)
 // =========================================================================
 export function getMonthlyReportData(
-  records: IncidentRecord[],
-  allRecords: IncidentRecord[],
-  mes: MesType
+  records: IncidentRecord[] = [],
+  allRecords: IncidentRecord[] = [],
+  mes: MesType = 'SETIEMBRE'
 ): MonthlyReportData {
-  const base = allRecords.length > 0 ? allRecords : records;
+  const safeAll = Array.isArray(allRecords) ? allRecords : [];
+  const safeRecs = Array.isArray(records) ? records : [];
+  const base = safeAll.length > 0 ? safeAll : safeRecs;
+  const safeMes = (mes || 'SETIEMBRE').toString().trim().toUpperCase() as MesType;
 
   // Filtrar registros del mes seleccionado (normalizar a mayúsculas)
   const monthRecords = base.filter(
-    (r) => (r.mes || '').toUpperCase() === mes.toUpperCase()
+    (r) => (r?.mes || '').toString().trim().toUpperCase() === safeMes
   );
 
   const totalMes = monthRecords.length;
@@ -73,7 +76,8 @@ export function getMonthlyReportData(
   // Agrupar por tipo de conflicto / incidencia
   const counts: Record<string, number> = {};
   monthRecords.forEach((r) => {
-    const inc = (r.incidencia || 'OTROS').trim().toUpperCase();
+    if (!r) return;
+    const inc = (r.incidencia || r.tipoIncidencia || 'OTROS').toString().trim().toUpperCase();
     counts[inc] = (counts[inc] || 0) + 1;
   });
 
@@ -87,15 +91,15 @@ export function getMonthlyReportData(
     .sort((a, b) => b.total - a.total);
 
   const mesCapitalizado =
-    mes.charAt(0) + mes.slice(1).toLowerCase();
-  const finDeMes = MESES_DIAS_2026[mes] || 30;
-  const rangoFechas = `Desde el 01 de ${mesCapitalizado} del 2026 Hasta el ${finDeMes} de ${mesCapitalizado} de 2026`;
+    safeMes.length > 0 ? (safeMes.charAt(0) + safeMes.slice(1).toLowerCase()) : 'Setiembre';
+  const finDeMes = MESES_DIAS_2026[safeMes] || 30;
+  const rangoFechas = `Desde el 01 de ${mesCapitalizado} del 2026 Hasta el ${finDeMes} de ${mesCapitalizado} 2026`;
 
   const totalAnualDistrital = base.length || 1;
   const porcentajeAnual = ((totalMes / totalAnualDistrital) * 100).toFixed(2);
 
   return {
-    mes,
+    mes: safeMes,
     rangoFechas,
     rows,
     totalMes,
@@ -291,6 +295,30 @@ export function exportMonthlyReportLandscapePDF(
   doc.setFillColor(6, 182, 212); // #06B6D4
   doc.rect(0, 16, pageWidth, 1, 'F');
 
+  // Logo institucional "/LOGO final.png" en la cabecera izquierda
+  try {
+    const logoImg = new Image();
+    logoImg.src = '/LOGO final.png';
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(6, 2, 38, 12, 1, 1, 'F');
+      doc.addImage(logoImg, 'PNG', 7, 2.5, 36, 11);
+    }
+  } catch (err) {
+    // Si la imagen no está en memoria, continúa
+  }
+
+  // Insignia circular Serenazgo en la cabecera derecha
+  try {
+    const serenazgoImg = new Image();
+    serenazgoImg.src = '/Logo - Serenazgo 2025.png';
+    if (serenazgoImg.complete && serenazgoImg.naturalWidth > 0) {
+      doc.addImage(serenazgoImg, 'PNG', pageWidth - 18, 2, 12, 12);
+    }
+  } catch (err) {
+    // silent
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
@@ -306,17 +334,10 @@ export function exportMonthlyReportLandscapePDF(
   const leftX = 7;
   const leftW = 96;
 
-  doc.setTextColor(11, 36, 71);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('MUNICIPALIDAD DISTRITAL DE NUEVO CHIMBOTE', leftX, 22);
-  doc.setFontSize(7);
-  doc.text('SUBGERENCIA DE SEGURIDAD CIUDADANA', leftX, 25.5);
-
   const totalRowsCount = data.rows.length;
   // Ajuste milimétrico para que 35 filas encajen perfectamente en 210mm
-  const tableFontSize = totalRowsCount > 25 ? 5.0 : 6.0;
-  const tablePadding = totalRowsCount > 25 ? 0.6 : 1.0;
+  const tableFontSize = totalRowsCount > 25 ? 5.2 : 6.0;
+  const tablePadding = totalRowsCount > 25 ? 0.7 : 1.0;
 
   const tableRows = data.rows.map((r) => [
     r.incidencia,
@@ -330,7 +351,7 @@ export function exportMonthlyReportLandscapePDF(
   ]);
 
   autoTable(doc, {
-    startY: 28,
+    startY: 20,
     margin: { left: leftX },
     tableWidth: leftW,
     head: [['CONFLICTOS MAS COMUNES', 'TOTALE', '%']],
@@ -448,14 +469,22 @@ export function exportMonthlyReportLandscapePDF(
     doc.text(r.total.toString(), plotLeft + barWidth + 1.5, yCenter + 1.2, { align: 'left' });
   });
 
-  // Pie institucional del documento
-  doc.setFontSize(6.0);
-  doc.setTextColor(148, 163, 184);
+  // Pie institucional del documento con créditos oficiales y firma
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(71, 85, 105);
   doc.text(
-    `Sistema Integrado de Seguridad Ciudadana • Municipalidad Distrital de Nuevo Chimbote • Periodo 2026`,
-    pageWidth / 2,
-    pageHeight - 3,
-    { align: 'center' }
+    `Elaborado por: Arturo David Rivero Onofre (ADRO) | Sistema Integrado de Seguridad Ciudadana - MDNCH`,
+    leftX,
+    pageHeight - 4
+  );
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.0);
+  doc.text(
+    `Subgerencia de Seguridad Ciudadana • Nuevo Chimbote 2026`,
+    pageWidth - 8,
+    pageHeight - 4,
+    { align: 'right' }
   );
 
   doc.save(`Ficha_Oficial_${data.mes}_2026_Seguridad_Ciudadana.pdf`);

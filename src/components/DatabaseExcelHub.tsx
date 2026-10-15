@@ -319,6 +319,15 @@ export const DatabaseExcelHub: React.FC<DatabaseExcelHubProps> = ({
             <span>Exportar Todo</span>
           </button>
 
+          <button
+            onClick={onResetToDefault}
+            className="px-3.5 py-1.5 rounded-lg bg-cyan-900/90 hover:bg-cyan-800 border border-cyan-400 text-cyan-100 font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+            title="Consultar y sincronizar con la base de datos Supabase en vivo (tabla registros)"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-cyan-300 animate-spin-hover" />
+            <span>Sincronizar Supabase</span>
+          </button>
+
           {isCustomDataLoaded && (
             <button
               onClick={onResetToDefault}

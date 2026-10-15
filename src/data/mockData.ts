@@ -298,15 +298,16 @@ export function generateInitialRecords(): IncidentRecord[] {
   // 3. Distribución mensual oficial exacta (Total: 19,758 según tabla del usuario)
   // Enero: 806, Febrero: 2957, Marzo: 3136, Abril: 2438, Mayo: 2075, Junio: 1787, Julio: 1941, Agosto: 2769, Setiembre: 1849
   const mesesTargets: { mes: MesType; count: number }[] = [
-    { mes: 'ENERO', count: 806 },
-    { mes: 'FEBRERO', count: 2957 },
-    { mes: 'MARZO', count: 3136 },
+    { mes: 'ENERO', count: 850 },
+    { mes: 'FEBRERO', count: 3136 },
+    { mes: 'MARZO', count: 2957 },
     { mes: 'ABRIL', count: 2438 },
     { mes: 'MAYO', count: 2075 },
     { mes: 'JUNIO', count: 1787 },
     { mes: 'JULIO', count: 1941 },
     { mes: 'AGOSTO', count: 2769 },
-    { mes: 'SETIEMBRE', count: 1849 },
+    { mes: 'SETIEMBRE', count: 2292 },
+    { mes: 'OCTUBRE', count: 390 },
   ];
   const mesesPool: MesType[] = [];
   for (const item of mesesTargets) {
