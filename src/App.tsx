@@ -28,6 +28,8 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import {
   supabase,
   fetchAllRegistrosFromSupabase,
+  uploadExcelFileToSupabase,
+  UploadProgressInfo,
   SUPABASE_URL,
   SUPABASE_TABLE,
 } from './utils/supabaseClient';
@@ -234,28 +236,89 @@ function DashboardInner() {
     };
   }, []);
 
-  // Carga manual directa de archivo seleccionado por el usuario
-  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [uploadProgress, setUploadProgress] = useState<UploadProgressInfo | null>(null);
+
+  // Función principal para subir archivo Excel/CSV y guardar de forma permanente en Supabase
+  const handleUploadFileToSupabase = async (file: File) => {
     try {
       setIsLoadingFile(true);
-      const parsed = await parseExcelFile(file);
-      const incidents = transformRowsToIncidents(parsed.rawRows, parsed.detectedMapping);
-      if (incidents.length === 0) {
-        throw new Error('No se detectaron registros válidos en el archivo.');
+      setUploadProgress({
+        stage: 'PARSING',
+        message: `Leyendo y parseando archivo "${file.name}" con xlsx...`,
+        percent: 5,
+        currentBatch: 0,
+        totalBatches: 0,
+        totalRows: 0,
+      });
+
+      const res = await uploadExcelFileToSupabase(file, (info) => {
+        setUploadProgress(info);
+      });
+
+      if (res.success) {
+        soundManager.playSuccess();
+        setUploadProgress({
+          stage: 'COMPLETED',
+          message: `¡${res.totalUploaded.toLocaleString()} registros guardados con éxito de forma permanente en Supabase! Recargando datos...`,
+          percent: 100,
+          currentBatch: Math.ceil(res.totalUploaded / 1000),
+          totalBatches: Math.ceil(res.totalUploaded / 1000),
+          totalRows: res.totalUploaded,
+        });
+
+        // 3. Al finalizar, recargar los datos desde Supabase para actualizar las tarjetas y métricas
+        setTimeout(async () => {
+          await loadSupabaseData();
+          setUploadProgress(null);
+          setIsExcelModalOpen(false);
+          setIsSaveToastOpen(true);
+        }, 1500);
+        return;
       }
-      setRecords(incidents);
-      setIsCustomDataLoaded(true);
-      setLastSavedAt(`${file.name} (${incidents.length.toLocaleString()} registros)`);
-      setDataSourceType('LOCAL');
-      setFilters(INITIAL_FILTERS);
-      soundManager.playSuccess();
-      setIsSaveToastOpen(true);
+
+      // Si Supabase devolvió error (por ejemplo RLS):
+      const isRls = res.error?.code === '42501' || String(res.error?.message || '').includes('row-level security');
+      const detail = isRls
+        ? 'Supabase tiene activado Row Level Security (RLS) en la tabla "registros". Para permitir la inserción permanente desde la app, en tu panel de Supabase ve a Table Editor > registros > RLS y desactiva RLS o crea una política de INSERT para el rol "anon".'
+        : (res.error?.message || 'Error al guardar los datos en Supabase');
+
+      setUploadProgress({
+        stage: 'ERROR',
+        message: `Atención: No se pudo completar la escritura remota: ${detail}`,
+        percent: 100,
+        currentBatch: 0,
+        totalBatches: 0,
+        totalRows: 0,
+        error: res.error,
+      });
+
+      // Como respaldo seguro para que el usuario no pierda su archivo, cargamos las filas en la memoria reactiva del dashboard
+      try {
+        const parsed = await parseExcelFile(file);
+        const incidents = transformRowsToIncidents(parsed.rawRows, parsed.detectedMapping);
+        if (incidents.length > 0) {
+          setBaseDeDatos(incidents);
+          setIsCustomDataLoaded(true);
+          setLastSavedAt(`${file.name} (${incidents.length.toLocaleString()} registros locales)`);
+          setFilters(INITIAL_FILTERS);
+        }
+      } catch {
+        // ignore
+      }
       setIsLoadingFile(false);
     } catch (err: unknown) {
       alert('Error procesando archivo: ' + (err instanceof Error ? err.message : 'Error desconocido'));
       setIsLoadingFile(false);
+      setUploadProgress(null);
+    }
+  };
+
+  // Carga manual directa de archivo seleccionado por el usuario mediante botón "Subir Excel"
+  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await handleUploadFileToSupabase(file);
     } finally {
       if (e.target) e.target.value = '';
     }
@@ -720,6 +783,7 @@ function DashboardInner() {
         onResetToDefault={handleResetToDefault}
         isCustomDataLoaded={isCustomDataLoaded}
         currentCount={records.length}
+        onUploadFileToSupabase={handleUploadFileToSupabase}
       />
 
       <NewIncidentModal
@@ -804,8 +868,94 @@ function DashboardInner() {
         </div>
       )}
 
+      {/* Modal / Alerta de Progreso de Guardado en Supabase */}
+      {uploadProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-[#0b1f3b] border-2 border-cyan-500 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden text-white p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-cyan-950 border border-cyan-400 text-cyan-300 shrink-0">
+                {uploadProgress.stage === 'COMPLETED' ? (
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 animate-bounce" />
+                ) : uploadProgress.stage === 'ERROR' ? (
+                  <AlertTriangle className="w-6 h-6 text-amber-400" />
+                ) : (
+                  <Database className="w-6 h-6 text-cyan-400 animate-pulse" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm sm:text-base font-black uppercase text-cyan-100 tracking-wide">
+                  {uploadProgress.stage === 'COMPLETED'
+                    ? '¡Guardado Permanente Exitoso!'
+                    : uploadProgress.stage === 'ERROR'
+                    ? 'Aviso de Seguridad Supabase'
+                    : 'Guardando de Forma Permanente en Supabase'}
+                </h3>
+                <p className="text-[11px] text-cyan-300/80 font-mono mt-0.5">
+                  Tabla remota: <span className="text-cyan-200 font-bold bg-slate-900/60 px-1 py-0.5 rounded">{SUPABASE_TABLE}</span> &bull; Base de Datos en Vivo
+                </p>
+              </div>
+            </div>
+
+            {/* Barra de Progreso Dinámica */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-xs font-bold gap-2">
+                <span className="text-cyan-200 truncate">{uploadProgress.message}</span>
+                <span className="text-cyan-400 font-mono shrink-0">{uploadProgress.percent}%</span>
+              </div>
+              <div className="w-full bg-slate-900 rounded-full h-3.5 overflow-hidden border border-cyan-800/80 p-0.5 shadow-inner">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    uploadProgress.stage === 'COMPLETED'
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                      : uploadProgress.stage === 'ERROR'
+                      ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                      : 'bg-gradient-to-r from-cyan-500 via-sky-400 to-blue-500 shadow-[0_0_12px_rgba(6,182,212,0.5)]'
+                  }`}
+                  style={{ width: `${Math.max(5, uploadProgress.percent)}%` }}
+                />
+              </div>
+            </div>
+
+            {uploadProgress.stage === 'ERROR' ? (
+              <div className="space-y-3 pt-2">
+                <div className="text-xs text-amber-200 bg-amber-950/70 p-3 rounded-lg border border-amber-500/50 leading-relaxed space-y-1.5">
+                  <p className="font-bold text-amber-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Configuración de Permisos en Supabase requerida:</span>
+                  </p>
+                  <p className="text-[11px] text-amber-100">
+                    {uploadProgress.message}
+                  </p>
+                  <p className="text-[10px] text-amber-300/90 italic pt-1 border-t border-amber-600/40">
+                    Nota: Los registros han sido cargados de inmediato en la memoria de tu dashboard para que puedas visualizarlos y trabajar con normalidad.
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setUploadProgress(null)}
+                    className="px-4 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white font-bold text-xs shadow cursor-pointer transition-colors"
+                  >
+                    Cerrar y Continuar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                <span>Lotes de 1.000 registros para evitar límites de tamaño</span>
+                {uploadProgress.totalBatches > 0 && (
+                  <span className="font-mono text-cyan-300 font-semibold">
+                    Lote {uploadProgress.currentBatch} / {uploadProgress.totalBatches}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Loading Overlay mientras se procesa el archivo Excel oficial de /public */}
-      {isLoadingFile && (
+      {isLoadingFile && !uploadProgress && (
         <div className="fixed inset-0 z-50 bg-[#071322]/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-white text-center">
           <div className="relative mb-5">
             <div className="w-16 h-16 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 animate-spin" />

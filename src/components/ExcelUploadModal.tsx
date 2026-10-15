@@ -30,6 +30,7 @@ interface ExcelUploadModalProps {
   onResetToDefault: () => void;
   isCustomDataLoaded: boolean;
   currentCount: number;
+  onUploadFileToSupabase?: (file: File) => Promise<void>;
 }
 
 export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
@@ -39,6 +40,7 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
   onResetToDefault,
   isCustomDataLoaded,
   currentCount,
+  onUploadFileToSupabase,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'file' | 'paste'>('file');
   const [dragOver, setDragOver] = useState(false);
@@ -83,12 +85,18 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
     }
   };
 
-  const handleQuickImport = () => {
+  const handleQuickImport = async () => {
     if (!detectedMapping) {
       setErrorMsg('No se detectó la estructura de columnas.');
       return;
     }
     try {
+      if (onUploadFileToSupabase && selectedFile) {
+        onClose();
+        await onUploadFileToSupabase(selectedFile);
+        return;
+      }
+
       const incidents = transformRowsToIncidents(rawRows, detectedMapping);
       if (incidents.length === 0) {
         throw new Error('No se pudo convertir ninguna fila válida.');
@@ -423,10 +431,18 @@ export const ExcelUploadModal: React.FC<ExcelUploadModalProps> = ({
                 <button
                   type="button"
                   onClick={handleQuickImport}
-                  className="px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all hover:scale-[1.02]"
+                  className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-lg transition-all hover:scale-[1.02]"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>¡CARGAR {rawRows.length} REGISTROS AL DASHBOARD Y MAPA!</span>
+                  {selectedFile ? (
+                    <Database className="w-4 h-4 text-emerald-200" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                  )}
+                  <span>
+                    {selectedFile
+                      ? `¡GUARDAR ${rawRows.length.toLocaleString()} FILAS PERMANENTES EN SUPABASE!`
+                      : `¡CARGAR ${rawRows.length.toLocaleString()} REGISTROS!`}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>

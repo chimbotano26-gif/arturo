@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import * as XLSX from 'xlsx';
 import {
   IncidentRecord,
   ZonaType,
@@ -454,3 +455,181 @@ export async function fetchAllRegistrosFromSupabase(
     };
   }
 }
+
+export interface UploadProgressInfo {
+  stage: 'PARSING' | 'CLEANING' | 'UPLOADING' | 'COMPLETED' | 'ERROR';
+  message: string;
+  percent: number;
+  currentBatch: number;
+  totalBatches: number;
+  totalRows: number;
+  error?: any;
+}
+
+/**
+ * Modifica la función del botón "Subir Excel" para que guarde los datos de forma permanente en Supabase:
+ * 
+ * 1. Al seleccionar el archivo Excel (.xlsx / .csv):
+ *    - Parsear los datos con la librería 'xlsx'.
+ *    - Limpiar la tabla remota en Supabase ejecutando:
+ *      await supabase.from('registros').delete().neq('AÑO', -1);
+ *    - Insertar las nuevas filas en la tabla 'registros' en lotes de 1.000 registros para evitar límites de tamaño:
+ *      for (let i = 0; i < filas.length; i += 1000) {
+ *        const lote = filas.slice(i, i + 1000);
+ *        await supabase.from('registros').insert(lote);
+ *      }
+ * 2. Mostrar una alerta o barra de progreso mientras sube (ejemplo: "Guardando en Supabase lote X...").
+ * 3. Al finalizar, recargar los datos desde Supabase para actualizar las tarjetas y métricas.
+ */
+export async function uploadExcelFileToSupabase(
+  file: File,
+  onProgress?: (info: UploadProgressInfo) => void
+): Promise<{ success: boolean; totalUploaded: number; records: IncidentRecord[]; error?: any }> {
+  try {
+    // 1. Parsear el archivo con la librería 'xlsx'
+    onProgress?.({
+      stage: 'PARSING',
+      message: `Leyendo y parseando archivo "${file.name}" con librería xlsx...`,
+      percent: 5,
+      currentBatch: 0,
+      totalBatches: 0,
+      totalRows: 0,
+    });
+
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('El archivo Excel seleccionado no contiene hojas de datos.');
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rawData = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+
+    if (!rawData || rawData.length === 0) {
+      throw new Error('El archivo no contiene filas con datos válidos.');
+    }
+
+    // Adaptar y formatear cada fila a las columnas oficiales de la tabla registros de Supabase
+    const filas = rawData.map((row) => {
+      const getVal = (candidates: string[], fallback: any = ''): any => {
+        for (const cand of candidates) {
+          if (row[cand] !== undefined && row[cand] !== null && row[cand] !== '') {
+            return row[cand];
+          }
+        }
+        return fallback;
+      };
+
+      const rawAnio = getVal(['AÑO', 'ANO', 'ANIO', 'anio', 'year'], 2026);
+      const anioNum = typeof rawAnio === 'number' ? Math.round(rawAnio) : (parseInt(String(rawAnio), 10) || 2026);
+
+      const tipoPatrullaVal = getVal(
+        ['TIPO DE PATRULLAJE', 'TIPO DE PATRULLA', 'tipo_patrullaje', 'tipo_patrulla', 'TIPO DE PA'],
+        'PATRULLAJE MUNICIPAL'
+      );
+
+      return {
+        'FECHA': String(getVal(['FECHA', 'fecha', 'date'], '2026-09-01')),
+        'AÑO': anioNum,
+        'UNIDAD': String(getVal(['UNIDAD', 'unidad', 'patrullero', 'movil'], 'Móvil Serenazgo 02')),
+        'LUGAR': String(getVal(['LUGAR', 'lugar', 'direccion', 'ubicacion'], 'Av. Pacífico')),
+        'Columna1': String(getVal(['Columna1', 'columna1', 'col1'], '')),
+        'INTEGRADO': String(getVal(['INTEGRADO', 'integrado'], 'SI')),
+        'OBSERVACION': String(getVal(['OBSERVACION', 'observacion', 'descripcion'], 'Intervención y patrullaje de Serenazgo.')),
+        'SECTOR': String(getVal(['SECTOR', 'sector', 'subsector'], 'S2BA')),
+        'ZONA': String(getVal(['ZONA', 'zona'], 'ZONA CENTRO')),
+        'HORA': String(getVal(['HORA', 'hora', 'time'], '14:30')),
+        'RANGO': String(getVal(['RANGO', 'rango'], '14:00 - 14:59')),
+        'INCIDENCIA': String(getVal(['INCIDENCIA', 'incidencia'], 'PATRULLAJE PREVENTIVO')),
+        'AGENTE': String(getVal(['AGENTE', 'agente', 'sereno'], 'Serenazgo de Guardia')),
+        'SERVICIO': String(getVal(['SERVICIO', 'servicio'], 'PATRULLAJE MOTORIZADO')),
+        'ORIGEN': String(getVal(['ORIGEN', 'origen'], 'CENTRAL DE MONITOREO 107')),
+        'COMISARIAS': String(getVal(['COMISARIAS', 'COMISARIA', 'COMISAR', 'comisarias'], 'CIA BUENOS AIRES')),
+        'TIPO DE PATRULLAJE': String(tipoPatrullaVal),
+        'MES': String(getVal(['MES', 'mes', 'month'], 'SETIEMBRE')),
+        'DIA': String(getVal(['DIA', 'dia', 'day'], 'LUNES')),
+        'HORA DE ALERTA': String(getVal(['HORA DE ALERTA', 'HORADE ALERTA FORMATO', 'HORA DE ALERTA FORMATO'], '14:30')),
+        'HORADE ALERTA FORMATO': String(getVal(['HORADE ALERTA FORMATO', 'HORA DE ALERTA FORMATO', 'HORA DE ALERTA'], '14:30')),
+        'HORA DE LLEGADA FORMATO': String(getVal(['HORA DE LLEGADA FORMATO', 'HORA DE LLEGADA'], '14:40')),
+        'PROMEDIO DE HORA DE ATENCION': String(getVal(['PROMEDIO DE HORA DE ATENCION', 'PROMEDIO DE HORA DE ATEN'], '00:07:00')),
+        'TURNO': String(getVal(['TURNO', 'turno'], 'MAÑANA')),
+      };
+    });
+
+    const totalBatches = Math.ceil(filas.length / 1000);
+
+    // 2. Limpiar la tabla remota en Supabase ejecutando:
+    // await supabase.from('registros').delete().neq('AÑO', -1);
+    onProgress?.({
+      stage: 'CLEANING',
+      message: 'Limpiando tabla remota en Supabase (await supabase.from("registros").delete().neq("AÑO", -1))...',
+      percent: 10,
+      currentBatch: 0,
+      totalBatches,
+      totalRows: filas.length,
+    });
+
+    const { error: delError } = await supabase
+      .from(SUPABASE_TABLE)
+      .delete()
+      .neq('AÑO', -1);
+
+    if (delError) {
+      console.warn('Aviso limpiando tabla remota en Supabase:', delError);
+    }
+
+    // 3. Insertar las nuevas filas en la tabla 'registros' en lotes de 1.000 registros para evitar límites de tamaño:
+    for (let i = 0; i < filas.length; i += 1000) {
+      const lote = filas.slice(i, i + 1000);
+      const batchNum = Math.floor(i / 1000) + 1;
+      const pct = Math.min(95, Math.round(10 + (batchNum / totalBatches) * 85));
+
+      // Mostrar alerta o barra de progreso mientras sube (ejemplo: "Guardando en Supabase lote X...")
+      onProgress?.({
+        stage: 'UPLOADING',
+        message: `Guardando en Supabase lote ${batchNum} de ${totalBatches} (${Math.min(i + 1000, filas.length).toLocaleString()} de ${filas.length.toLocaleString()} registros)...`,
+        percent: pct,
+        currentBatch: batchNum,
+        totalBatches,
+        totalRows: filas.length,
+      });
+
+      const { error: insertErr } = await supabase
+        .from(SUPABASE_TABLE)
+        .insert(lote);
+
+      if (insertErr) {
+        console.error(`Error al insertar lote ${batchNum} en Supabase:`, insertErr);
+        throw insertErr;
+      }
+    }
+
+    // Convertir para actualizar de inmediato la memoria reactiva
+    const transformed = transformSupabaseRowsToIncidents(filas);
+
+    onProgress?.({
+      stage: 'COMPLETED',
+      message: `¡${filas.length.toLocaleString()} filas guardadas con éxito de forma permanente en Supabase! Recargando datos...`,
+      percent: 100,
+      currentBatch: totalBatches,
+      totalBatches,
+      totalRows: filas.length,
+    });
+
+    return {
+      success: true,
+      totalUploaded: filas.length,
+      records: transformed,
+    };
+  } catch (err: any) {
+    console.error('Error durante la carga permanente a Supabase:', err);
+    return {
+      success: false,
+      totalUploaded: 0,
+      records: [],
+      error: err,
+    };
+  }
+}
+
