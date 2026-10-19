@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
+import 'leaflet.heat';
 import 'leaflet/dist/leaflet.css';
 import { MapErrorBoundary } from './MapErrorBoundary';
 import {
@@ -21,14 +22,8 @@ import {
   Filter,
 } from 'lucide-react';
 import { IncidentRecord, PatrolUnit } from '../types';
-import { SUBSECTORES_CONFIG } from '../data/mockData';
-import {
-  NUEVO_CHIMBOTE_DISTRICT_BOUNDARY,
-  PACIFIC_COASTLINE,
-  TACTICAL_ROAD_NETWORK,
-  TACTICAL_SECTORS_BOUNDARIES,
-  TACTICAL_LANDMARKS,
-} from '../data/nuevoChimboteVectorMap';
+import { TACTICAL_LANDMARKS } from '../data/nuevoChimboteVectorMap';
+import { processIncidentsToHeatPoints, geocodeIncident } from '../utils/geoCoderNuevoChimbote';
 import { GoogleMapsTacticalView } from './GoogleMapsTacticalView';
 import { EditableText } from './EditableText';
 
@@ -71,16 +66,16 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
   const vectorBaseGroupRef = useRef<L.LayerGroup | null>(null);
   const layersGroupRef = useRef<L.LayerGroup | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const heatLayerRef = useRef<any>(null);
 
   const [mapEngine, setMapEngine] = useState<'LEAFLET' | 'GOOGLE_MAPS'>('LEAFLET');
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [mapMode, setMapMode] = useState<'HYBRID' | 'HEAT' | 'UNITS' | 'CLUSTER'>('HYBRID');
-  const [mapStyle, setMapStyle] = useState<'DARK' | 'VECTOR_TACTICAL' | 'STREET' | 'SATELLITE'>('DARK');
+  const [mapStyle, setMapStyle] = useState<'DARK' | 'STREET' | 'SATELLITE'>('STREET');
   const [selectedItem, setSelectedItem] = useState<{
     type: 'INCIDENT' | 'UNIT';
     data: IncidentRecord | PatrolUnit;
   } | null>(null);
-  const [showSectorRanges, setShowSectorRanges] = useState(true);
 
   const [radioStatus, setRadioStatus] = useState<string | null>(null);
 
@@ -104,18 +99,9 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
   }, [isFullScreen, mapMode, mapStyle]);
 
   // Center coordinate of Nuevo Chimbote (Plaza Mayor)
-  const NCH_CENTER = { lat: -9.1265, lng: -78.5302 };
+  const NCH_CENTER = { lat: -9.1258, lng: -78.5242 };
 
-  // Calculate sector density
-  const sectorDensity = useMemo(() => {
-    const counts: Record<string, number> = {};
-    records.forEach((r) => {
-      counts[r.subsector] = (counts[r.subsector] || 0) + 1;
-    });
-    return counts;
-  }, [records]);
-
-  // Initialize Map with Native Vector Base and Layer Groups
+  // Initialize Map with Base and Layer Groups
   useEffect(() => {
     const container = mapContainerRef.current;
     if (!container) return;
@@ -147,7 +133,7 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Layer 1: Base Vectorial Táctica Nativa (Garantiza que nunca se quede negro)
+      // Layer 1: Puntos Estratégicos y Bases de Serenazgo (Sin polígonos de cuadrantes)
       const vectorGroup = L.layerGroup().addTo(map);
       vectorBaseGroupRef.current = vectorGroup;
 
@@ -170,6 +156,14 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
     }
 
     return () => {
+      if (heatLayerRef.current && mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.removeLayer(heatLayerRef.current);
+        } catch (e) {
+          // ignore
+        }
+        heatLayerRef.current = null;
+      }
       if (mapInstanceRef.current) {
         try {
           mapInstanceRef.current.remove();
@@ -181,7 +175,7 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
     };
   }, []);
 
-  // Update Base Tile Layer (Vectorial Nativo / OSM Dark / OSM Street / Satellite)
+  // Update Base Tile Layer (CartoDB Dark / OSM Streets / Satellite Esri)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -191,28 +185,32 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
       tileLayerRef.current = null;
     }
 
-    if (mapStyle === 'VECTOR_TACTICAL') {
-      // 100% Vectorial, Cero dependencias externas de teselas, Ultra Rápido y Estable
-      return;
-    }
+    let url = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+    let subdomains = 'abc';
 
-    let url = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    let attribution = '&copy; OpenStreetMap contributors';
     if (mapStyle === 'SATELLITE') {
       url = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
       attribution = '&copy; Esri World Imagery';
+      subdomains = '';
+    } else {
+      // OpenStreetMap estándar - 100% abierto, gratuito y sin necesidad de API Key
+      url = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      subdomains = 'abc';
     }
 
     const tile = L.tileLayer(url, {
       maxZoom: 19,
       attribution,
+      subdomains: subdomains ? subdomains : undefined,
     }).addTo(map);
 
     tileLayerRef.current = tile;
     tile.bringToBack();
   }, [mapStyle]);
 
-  // Render Native Vector Layer: Grid, Radios Radar, Perímetro, Costanera, 16 Subsectores, Calles y Puntos Clave
+  // Marcadores Estratégicos Oficiales: Bases de Serenazgo y Comisarías PNP (Sin polígonos ni cuadrantes)
   useEffect(() => {
     const map = mapInstanceRef.current;
     const vGroup = vectorBaseGroupRef.current;
@@ -220,162 +218,6 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
 
     vGroup.clearLayers();
 
-    // 1. Retícula Táctica de Coordenadas (Paralelos y Meridianos con estilo Radar)
-    const latitudes = [-9.09, -9.10, -9.11, -9.12, -9.13, -9.14, -9.15];
-    const longitudes = [-78.55, -78.54, -78.53, -78.52, -78.51, -78.50];
-
-    latitudes.forEach((lat) => {
-      const line = L.polyline(
-        [
-          [lat, -78.56],
-          [lat, -78.49],
-        ],
-        {
-          color: '#0e7490',
-          weight: 1,
-          dashArray: '3, 12',
-          opacity: 0.35,
-          interactive: false,
-        }
-      );
-      vGroup.addLayer(line);
-    });
-
-    longitudes.forEach((lng) => {
-      const line = L.polyline(
-        [
-          [-9.085, lng],
-          [-9.165, lng],
-        ],
-        {
-          color: '#0e7490',
-          weight: 1,
-          dashArray: '3, 12',
-          opacity: 0.35,
-          interactive: false,
-        }
-      );
-      vGroup.addLayer(line);
-    });
-
-    // 2. Anillos Concéntricos de Radar (Distancia desde Plaza Mayor / Base Central)
-    const radarDistances = [
-      { r: 1200, label: '1.2 km' },
-      { r: 2400, label: '2.4 km' },
-      { r: 3800, label: '3.8 km' },
-    ];
-    radarDistances.forEach((rd) => {
-      const circle = L.circle([NCH_CENTER.lat, NCH_CENTER.lng], {
-        radius: rd.r,
-        color: '#0284c7',
-        weight: 1,
-        dashArray: '6, 12',
-        opacity: 0.3,
-        fill: false,
-        interactive: false,
-      });
-      vGroup.addLayer(circle);
-    });
-
-    // 3. Línea Costera y Mar del Pacífico
-    const oceanPolygon = L.polygon(
-      [
-        [-9.085, -78.565],
-        [-9.165, -78.565],
-        ...[...PACIFIC_COASTLINE].reverse(),
-        [-9.085, -78.565],
-      ],
-      {
-        color: '#0284c7',
-        weight: 1,
-        fillColor: '#030c18',
-        fillOpacity: 0.7,
-        interactive: false,
-      }
-    );
-    vGroup.addLayer(oceanPolygon);
-
-    const coastline = L.polyline(PACIFIC_COASTLINE, {
-      color: '#38bdf8',
-      weight: 3,
-      opacity: 0.85,
-      interactive: false,
-    });
-    vGroup.addLayer(coastline);
-
-    // 4. Perímetro General de la Jurisdicción de Nuevo Chimbote
-    const districtPerimeter = L.polygon(NUEVO_CHIMBOTE_DISTRICT_BOUNDARY, {
-      color: '#06b6d4',
-      weight: 2,
-      dashArray: '6, 8',
-      fillColor: '#07152b',
-      fillOpacity: 0.08,
-      opacity: 0.8,
-      interactive: false,
-    });
-    vGroup.addLayer(districtPerimeter);
-
-    // 5. Polígonos de los 16 Subsectores Oficiales (S1BA a S9BA y S1VM a S7VM)
-    TACTICAL_SECTORS_BOUNDARIES.forEach((sec) => {
-      const sectorPolygon = L.polygon(sec.coords, {
-        color: sec.color,
-        weight: 1.5,
-        dashArray: '4, 6',
-        fillColor: sec.color,
-        fillOpacity: 0.1,
-      });
-
-      sectorPolygon.bindTooltip(
-        `<div class="text-xs font-bold text-white bg-slate-950/95 p-2 rounded-lg border border-cyan-400 shadow-xl">
-          <div class="text-cyan-300 font-mono text-[11px] font-black">${sec.id} - ${sec.nombre}</div>
-          <div class="text-[10px] text-slate-300 mt-0.5">${sec.comisaria} • ${sec.zona}</div>
-          <div class="text-[10px] text-amber-300 font-bold mt-1">📊 ${sectorDensity[sec.id] || 0} Atenciones Registradas</div>
-        </div>`,
-        { sticky: true }
-      );
-
-      sectorPolygon.on('click', () => {
-        const bounds = sectorPolygon.getBounds();
-        map.fitBounds(bounds, { padding: [30, 30] });
-      });
-
-      vGroup.addLayer(sectorPolygon);
-    });
-
-    // 6. Red Vial Principal (Arterias Tácticas de Tránsito y Patrullaje)
-    TACTICAL_ROAD_NETWORK.forEach((road) => {
-      const isTrunk = road.tipo === 'TRUNK';
-      const isPrimary = road.tipo === 'PRIMARY';
-
-      const roadLine = L.polyline(road.coords, {
-        color: isTrunk ? '#38bdf8' : isPrimary ? '#06b6d4' : '#0284c7',
-        weight: isTrunk ? 4 : isPrimary ? 2.6 : 1.8,
-        opacity: isTrunk ? 0.9 : 0.7,
-        className: isTrunk ? 'tactical-road-glow' : '',
-      });
-
-      roadLine.bindTooltip(
-        `<div class="text-[11px] font-bold text-white bg-slate-950/90 px-2 py-1 rounded border border-cyan-500 shadow">
-          🛣️ ${road.nombre}
-        </div>`,
-        { sticky: true }
-      );
-
-      vGroup.addLayer(roadLine);
-
-      // Línea central de contraste para autopistas principales
-      if (isTrunk) {
-        const innerCore = L.polyline(road.coords, {
-          color: '#ffffff',
-          weight: 1.2,
-          opacity: 0.95,
-          interactive: false,
-        });
-        vGroup.addLayer(innerCore);
-      }
-    });
-
-    // 7. Puntos Estratégicos y Bases de Serenazgo (Landmarks)
     TACTICAL_LANDMARKS.forEach((lm) => {
       let iconEmoji = '📍';
       let badgeBg = 'bg-slate-900/90 border-cyan-500 text-cyan-200';
@@ -397,24 +239,24 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
       }
 
       const landmarkHtml = `
-        <div class="px-1.5 py-0.5 rounded text-[9px] font-bold border shadow-lg flex items-center gap-1 ${badgeBg} whitespace-nowrap cursor-pointer hover:scale-110 transition-transform">
+        <div class="px-2 py-0.5 rounded-md text-[10px] font-bold border shadow-lg flex items-center gap-1.5 ${badgeBg} whitespace-nowrap cursor-pointer hover:scale-110 transition-transform">
           <span>${iconEmoji}</span>
-          <span class="hidden sm:inline">${lm.nombre}</span>
+          <span class="font-extrabold">${lm.nombre}</span>
         </div>
       `;
 
       const icon = L.divIcon({
         html: landmarkHtml,
         className: 'custom-landmark-icon',
-        iconSize: [110, 22],
-        iconAnchor: [55, 11],
+        iconSize: [120, 24],
+        iconAnchor: [60, 12],
       });
 
       const marker = L.marker([lm.lat, lm.lng], { icon });
       marker.bindTooltip(
         `<div class="text-xs font-bold text-white bg-slate-950 p-2 rounded-lg border border-cyan-400 shadow-xl">
           <strong>${lm.nombre}</strong><br/>
-          <span class="text-[10px] text-cyan-300">Punto Estratégico Municipal</span>
+          <span class="text-[10px] text-cyan-300">Punto Estratégico Municipal Oficial</span>
         </div>`,
         { sticky: true }
       );
@@ -424,109 +266,75 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
 
       vGroup.addLayer(marker);
     });
-  }, [sectorDensity]);
+  }, []);
 
-  // Render Heatmap, Sector Ranges & Patrol Markers
+  // Render Capa de Calor (Heatmap con leaflet-heat), Puntos Reales de Atenciones y Patrulleros
   useEffect(() => {
     const map = mapInstanceRef.current;
     const group = layersGroupRef.current;
     if (!map || !group) return;
 
-    group.clearLayers();
-
-    // 1. Sector Ranges & Heat Circles
-    if (showSectorRanges || mapMode === 'HEAT' || mapMode === 'HYBRID') {
-      Object.entries(SUBSECTORES_CONFIG).forEach(([key, config]) => {
-        const count = sectorDensity[key] || 0;
-        if (count === 0 && mapMode === 'HEAT') return;
-
-        // Radio estrictamente ajustado a la zona real donde ocurrió la incidencia (35m - 85m máximo)
-        const radius = Math.min(85, Math.max(35, Math.sqrt(count) * 2.6));
-
-        // Color coding by heat intensity
-        let fillColor = '#06b6d4';
-        let strokeColor = '#22d3ee';
-        if (count > 300) {
-          fillColor = '#ef4444'; // Red hot
-          strokeColor = '#f87171';
-        } else if (count > 180) {
-          fillColor = '#f97316'; // Orange
-          strokeColor = '#fb923c';
-        } else if (count > 80) {
-          fillColor = '#eab308'; // Yellow
-          strokeColor = '#fde047';
-        }
-
-        const circle = L.circle([config.lat, config.lng], {
-          radius: radius,
-          color: strokeColor,
-          weight: count > 300 ? 2.5 : 1.5,
-          opacity: 0.85,
-          fillColor: fillColor,
-          fillOpacity: count > 300 ? 0.45 : count > 180 ? 0.35 : 0.25,
-        });
-
-        // Heat pulse aura for high activity sectors
-        if (count > 150) {
-          const outerAura = L.circle([config.lat, config.lng], {
-            radius: radius * 1.6,
-            color: strokeColor,
-            weight: 1,
-            dashArray: '4, 6',
-            opacity: 0.5,
-            fillColor: fillColor,
-            fillOpacity: 0.12,
-          });
-          group.addLayer(outerAura);
-        }
-
-        circle.bindTooltip(
-          `<div class="text-xs font-bold text-white bg-slate-950/90 p-1.5 rounded border border-cyan-500 shadow">
-            <strong>${key}</strong>: ${config.nombre}<br/>
-            <span class="text-cyan-300">🔥 ${count} Operativos Registrados</span>
-          </div>`,
-          { sticky: true, opacity: 0.95 }
-        );
-
-        circle.on('click', () => {
-          map.flyTo([config.lat, config.lng], 15);
-        });
-
-        group.addLayer(circle);
-
-        // Add Sector Label Marker
-        const labelHtml = `
-          <div class="px-1.5 py-0.5 rounded text-[10px] font-black uppercase text-white shadow-md border ${
-            count > 300
-              ? 'bg-rose-900/90 border-rose-500 text-rose-100'
-              : count > 150
-              ? 'bg-amber-900/90 border-amber-500 text-amber-100'
-              : 'bg-blue-950/90 border-blue-500 text-blue-100'
-          }">
-            ${key} (${count})
-          </div>
-        `;
-        const labelIcon = L.divIcon({
-          html: labelHtml,
-          className: 'custom-sector-label',
-          iconSize: [60, 20],
-          iconAnchor: [30, 10],
-        });
-        group.addLayer(L.marker([config.lat, config.lng], { icon: labelIcon }));
-      });
+    // 1. Limpiar capa de calor previa si existe
+    if (heatLayerRef.current) {
+      try {
+        map.removeLayer(heatLayerRef.current);
+      } catch (e) {
+        // ignore
+      }
+      heatLayerRef.current = null;
     }
 
-    // 2. Incident Pins (if CLUSTER or HYBRID mode, show dynamic filtered incidents by Columna1 and Observacion)
+    // 2. Limpiar capas dinámicas previas
+    group.clearLayers();
+
+    // 3. CAPA DE CALOR TÁCTICA (leaflet-heat)
+    if (mapMode === 'HEAT' || mapMode === 'HYBRID') {
+      const heatPoints = processIncidentsToHeatPoints(records);
+      if (heatPoints.length > 0) {
+        const heatData: [number, number, number][] = heatPoints.map((p) => [
+          p.lat,
+          p.lng,
+          p.intensity,
+        ]);
+
+        const heatGradient: Record<number, string> = {
+          0.2: '#0284c7', // Azul táctico
+          0.4: '#10b981', // Verde
+          0.6: '#eab308', // Amarillo
+          0.8: '#f97316', // Naranja
+          1.0: '#ef4444', // Rojo crítico
+        };
+
+        try {
+          const heat = (L as any).heatLayer(heatData, {
+            minOpacity: 0.35,
+            maxZoom: 18,
+            max: 1.0,
+            radius: 28,
+            blur: 18,
+            gradient: heatGradient,
+          });
+
+          heat.addTo(map);
+          heatLayerRef.current = heat;
+        } catch (err) {
+          console.error('Error al inicializar mapa de calor Leaflet:', err);
+        }
+      }
+    }
+
+    // 4. PUNTOS REALES DE ATENCIONES CON POPUPS DE DETALLE
     if (mapMode === 'CLUSTER' || mapMode === 'HYBRID') {
-      const sampled = records.slice(0, 300); // Muestra hasta 300 ocurrencias filtradas
-      sampled.forEach((rec) => {
+      const sampled = records.slice(0, 350);
+      sampled.forEach((rec, idx) => {
         const meta = getIncidentCategoryMeta(rec.tipoIncidencia);
         const pinColor = meta.color;
-        const lugarDisplay = rec.columna1 || rec.lugar || rec.ubicacion;
+        const point = geocodeIncident(rec, idx);
+        const lugarDisplay = rec.columna1 || rec.lugar || point.lugar || 'Nuevo Chimbote';
         const observacionDisplay = rec.observacion || rec.descripcion || 'Sin observación adicional';
 
         const iconHtml = `
-          <div style="background-color: ${pinColor}; box-shadow: 0 0 10px ${pinColor};" 
+          <div style="background-color: ${pinColor}; box-shadow: 0 0 8px ${pinColor};" 
                class="w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center cursor-pointer transform hover:scale-150 transition-transform">
           </div>
         `;
@@ -538,23 +346,23 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
           iconAnchor: [7, 7],
         });
 
-        const marker = L.marker([rec.lat, rec.lng], { icon: customIcon });
+        const marker = L.marker([point.lat, point.lng], { icon: customIcon });
 
-        // Tooltip dinámico con Columna 1 y Observación
+        // Tooltip dinámico con detalle completo al pasar el mouse
         marker.bindTooltip(
-          `<div class="p-2 bg-slate-950/95 text-white rounded-lg border border-cyan-500 shadow-xl max-w-[260px] text-xs">
-            <div class="flex items-center justify-between pb-1 border-b border-slate-700">
+          `<div class="p-2.5 bg-slate-950/95 text-white rounded-lg border border-cyan-500 shadow-xl max-w-[280px] text-xs">
+            <div class="flex items-center justify-between pb-1.5 border-b border-slate-700">
               <strong style="color: ${pinColor}" class="text-[11px] uppercase">${rec.tipoIncidencia}</strong>
-              <span class="text-[9px] bg-slate-800 px-1 rounded text-cyan-300 font-mono">${rec.codigo || rec.id}</span>
+              <span class="text-[9px] bg-slate-800 px-1.5 py-0.5 rounded text-cyan-300 font-mono">${rec.codigo || rec.id}</span>
             </div>
-            <div class="mt-1 text-[11px] text-slate-200">
-              <strong>📍 Lugar / Columna 1:</strong> ${lugarDisplay}
+            <div class="mt-1.5 text-[11px] text-slate-200">
+              <strong>📍 Ubicación:</strong> ${lugarDisplay}
             </div>
-            <div class="mt-1 text-[10px] text-slate-300 italic bg-slate-900/80 p-1 rounded">
+            <div class="mt-1 text-[10px] text-slate-300 italic bg-slate-900/80 p-1.5 rounded border border-slate-800">
               📝 ${observacionDisplay}
             </div>
             <div class="mt-1.5 pt-1 border-t border-slate-800 flex items-center justify-between text-[10px] text-amber-300">
-              <span>⏰ ${rec.turno} - ${rec.hora}</span>
+              <span>⏰ ${rec.turno} - ${rec.hora || ''}</span>
               <span class="text-cyan-400 font-bold">${rec.comisaria}</span>
             </div>
           </div>`,
@@ -570,7 +378,7 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
       });
     }
 
-    // 3. Patrol Units Live Tracking Pins
+    // 5. UNIDADES DE PATRULLAJE
     if (mapMode === 'UNITS' || mapMode === 'HYBRID') {
       patrolUnits.forEach((unit) => {
         const isPatrolling = unit.estado === 'PATRULLANDO';
@@ -603,7 +411,7 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
         group.addLayer(marker);
       });
     }
-  }, [records, patrolUnits, mapMode, showSectorRanges, sectorDensity, onSelectIncident]);
+  }, [records, patrolUnits, mapMode, onSelectIncident]);
 
   const handleFlyTo = (lat: number, lng: number, zoom = 15) => {
     mapInstanceRef.current?.flyTo([lat, lng], zoom, { duration: 1 });
@@ -763,12 +571,11 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
           <select
             value={mapStyle}
             onChange={(e) => setMapStyle(e.target.value as any)}
-            className="bg-[#050d18] border border-cyan-800 rounded px-2 py-0.5 text-xs text-cyan-300 font-bold focus:outline-none"
+            className="bg-[#050d18] border border-cyan-800 rounded px-2 py-0.5 text-xs text-cyan-300 font-bold focus:outline-none cursor-pointer"
           >
-            <option value="DARK">OpenStreetMap Táctico Nocturno (Calles y Sectores)</option>
-            <option value="VECTOR_TACTICAL">Retícula Vectorial Táctica (Nativa / 100% Estable)</option>
-            <option value="STREET">OpenStreetMap Estándar</option>
-            <option value="SATELLITE">Vista Satelital (Esri)</option>
+            <option value="STREET">Calles y Avenidas (OpenStreetMap - Sin Clave)</option>
+            <option value="SATELLITE">Vista Satelital HD (Esri World)</option>
+            <option value="DARK">Nocturno Táctico (OSM Alto Contraste)</option>
           </select>
 
           {/* Fullscreen Button */}
@@ -825,24 +632,29 @@ export const TacticalMapView: React.FC<TacticalMapViewProps> = ({
         </button>
 
         {/* Floating Interactive Legend */}
-        <div className="absolute top-3 left-3 z-10 bg-[#061120]/90 backdrop-blur-md p-2.5 rounded-xl border border-cyan-800/60 shadow-2xl text-xs space-y-1.5 max-w-[200px]">
-          <div className="text-[10px] font-black uppercase text-cyan-300 tracking-wider">
-            ESCALA DE INCIDENCIA
+        <div className="absolute top-3 left-3 z-10 bg-[#061120]/90 backdrop-blur-md p-2.5 rounded-xl border border-cyan-800/60 shadow-2xl text-xs space-y-1.5 max-w-[210px]">
+          <div className="text-[10px] font-black uppercase text-cyan-300 tracking-wider flex items-center gap-1.5">
+            <Flame className="w-3.5 h-3.5 text-rose-400" />
+            <span>REFERENCIAS TÁCTICAS</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]"></span>
-            <span className="text-[11px] text-slate-300">&gt; 300 ops (Crítico)</span>
+            <span className="w-3 h-3 rounded-full bg-gradient-to-r from-cyan-500 via-amber-400 to-rose-500 shadow-sm"></span>
+            <span className="text-[11px] text-slate-300">Mancha Térmica (Calor)</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-            <span className="text-[11px] text-slate-300">150 - 300 ops (Alto)</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 border border-white"></span>
+            <span className="text-[11px] text-slate-300">Punto de Atención Real</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-            <span className="text-[11px] text-slate-300">&lt; 150 ops (Medio/Bajo)</span>
+            <span className="text-xs">🛡️</span>
+            <span className="text-[11px] text-cyan-200">Bases Serenazgo</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs">👮</span>
+            <span className="text-[11px] text-blue-200">Comisarías PNP</span>
           </div>
           <div className="flex items-center gap-2 pt-1 border-t border-slate-700">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
             <span className="text-[11px] text-emerald-300 font-bold">Unidad Patrullero</span>
           </div>
         </div>
