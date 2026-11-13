@@ -313,11 +313,11 @@ const BeveledHorizontalBarChart: React.FC<{
 };
 
 export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
-  records = [],
+  records,
   onFilterZona,
   onFilterTurno
 }) => {
-  const safeRecords = Array.isArray(records) ? records : [];
+  const safeRecords = useMemo(() => (Array.isArray(records) ? records : []), [records]);
 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedUrbs, setSelectedUrbs] = useState<string[]>([]);
@@ -986,7 +986,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
     }
   };
 
-  // Inicializar MapLibre GL con maxzoom calibrado para que NUNCA muestre "Map data not yet available"
   useEffect(() => {
     let isMounted = true;
     const loadMapLibre = async () => {
@@ -1067,7 +1066,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
     };
   }, []);
 
-  // Aplicar capa y tonalidad nítida: Nocturno Azul Pizarra (con calles 100% visibles), Urbano Claro, Mapa Vial o Satélite 3D
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !mapReady) return;
@@ -1088,7 +1086,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
       const canvas = map.getCanvas();
       if (canvas) {
         if (activeLayer === 'DARK_BLUE') {
-          // Tono azul pizarra con nombres de calles blancos/celestes nítidos y cobertura total en todos los zooms
           canvas.style.filter = 'invert(86%) hue-rotate(190deg) brightness(106%) contrast(118%) saturate(135%)';
         } else {
           canvas.style.filter = 'none';
@@ -1637,7 +1634,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
             </div>
 
             {/* ================================================================= */}
-            {/* MAPA TÁCTICO 3D CON COBERTURA TOTAL EN TODOS LOS ZOOMS            */}
+            {/* MAPA TÁCTICO 3D CON ATENCIONES AGRUPADAS Y FILTRO POR COLOR       */}
             {/* ================================================================= */}
             <div
               className={
@@ -1718,7 +1715,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
               >
                 <div ref={mapContainerRef} className="w-full h-full" />
 
-                {/* CUADRO DE DIÁLOGO CON ATENCIONES AGRUPADAS Y FILTRO POR COLOR */}
                 {isMapExpanded && (
                   <div
                     className={`absolute top-2 left-2 z-10 border-2 border-cyan-400/85 bg-[#051326]/95 backdrop-blur-md rounded-xl shadow-2xl transition-all ${
@@ -1755,7 +1751,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
 
                     {!isPointsPanelMinimized && (
                       <>
-                        {/* Botones de Filtro Rápido por Color */}
                         <div className="mt-2 pt-1.5 border-t border-cyan-500/30">
                           <div className="text-[8px] font-mono text-cyan-300 uppercase mb-1">
                             FILTRAR POR COLOR DE GRAVEDAD:
