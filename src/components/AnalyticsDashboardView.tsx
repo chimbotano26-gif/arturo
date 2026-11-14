@@ -1019,19 +1019,19 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                 type: 'raster',
                 tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
                 tileSize: 256,
-                maxzoom: 18
+                maxzoom: 20
               },
               'esri-street': {
                 type: 'raster',
                 tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
                 tileSize: 256,
-                maxzoom: 17
+                maxzoom: 20
               },
               'esri-satellite': {
                 type: 'raster',
                 tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
                 tileSize: 256,
-                maxzoom: 17
+                maxzoom: 20
               }
             },
             layers: [
@@ -1256,7 +1256,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
 
           <div className="flex-1 max-w-2xl w-full bg-gradient-to-r from-cyan-950 via-cyan-600/35 to-cyan-950 border-y-2 border-x border-cyan-300/90 rounded-xl px-4 py-2 text-center shadow-[0_0_35px_rgba(6,182,212,0.45)]">
             <h1 className="text-xs sm:text-base md:text-lg font-black tracking-[0.12em] text-white uppercase drop-shadow-[0_0_12px_rgba(34,211,238,0.95)]">
-              SISTEMA DE SEGURIDAD CIUDADANA Y CIBER-MONITOREO - SERENAZGO
+              SICEP: SISTEMA INTEGRADO DE CONTROL Y ESTADÍSTICA PATRULLERA
             </h1>
             <div className="flex flex-wrap items-center justify-center gap-2.5 text-[10px] font-mono text-cyan-200 mt-0.5">
               <span className="bg-cyan-500/25 px-2.5 py-0.5 rounded border border-cyan-300/50 font-bold truncate max-w-[280px]">
@@ -1634,39 +1634,41 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
             </div>
 
             {/* ================================================================= */}
-            {/* MAPA TÁCTICO 3D CON ATENCIONES AGRUPADAS Y FILTRO POR COLOR       */}
+            {/* MAPA TÁCTICO 3D CON BOTONES SUPERIORES FIJOS Y VISIBLES           */}
             {/* ================================================================= */}
             <div
               className={
                 isMapExpanded
-                  ? 'fixed inset-x-2 sm:inset-x-3 top-16 bottom-2 z-50 border-2 border-cyan-300 bg-[#041020] rounded-2xl p-2.5 sm:p-3 flex flex-col shadow-[0_0_90px_rgba(6,182,212,0.85)]'
+                  ? 'fixed inset-x-2 sm:inset-x-3 top-2 bottom-2 z-[9999] border-2 border-cyan-300 bg-[#041020] rounded-2xl p-2 sm:p-2.5 flex flex-col shadow-[0_0_90px_rgba(6,182,212,0.85)]'
                   : 'border-2 border-cyan-400/80 bg-[#041020] rounded-xl p-2.5 relative overflow-hidden shadow-[0_0_35px_rgba(6,182,212,0.28)]'
               }
             >
-              <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2 px-0.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Crosshair className="w-4 h-4 text-cyan-300 shrink-0" />
-                  <span className="text-xs font-mono font-black text-white uppercase truncate max-w-[200px] sm:max-w-xs">
+              {/* BARRA DE CONTROLES SUPERIOR (SIEMPRE VISIBLE Y FLOTANTE) */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5 px-0.5 shrink-0 bg-[#051326]/90 p-1.5 rounded-lg border border-cyan-500/40">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Crosshair className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                  <span className="text-[11px] font-mono font-black text-white uppercase truncate max-w-[160px] sm:max-w-xs">
                     {activeTitle}
                   </span>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5">
+                  {/* Selector de Mapas Gratuitos */}
                   {isMapExpanded && (
-                    <div className="flex items-center gap-1 bg-[#020813] p-1 rounded-lg border border-cyan-500/50">
-                      <MapIcon className="w-3.5 h-3.5 text-cyan-300 ml-1 mr-0.5 hidden md:block" />
+                    <div className="flex items-center gap-1 bg-[#020813] p-0.5 rounded border border-cyan-500/50">
+                      <MapIcon className="w-3 h-3 text-cyan-300 ml-1 mr-0.5 hidden md:block" />
                       {[
-                        { key: 'DARK_BLUE' as MapStyleKey, label: 'NOCTURNO AZUL' },
-                        { key: 'VOYAGER' as MapStyleKey, label: 'URBANO CLARO' },
-                        { key: 'ESRI_STREET' as MapStyleKey, label: 'MAPA VIAL' },
-                        { key: 'SATELLITE' as MapStyleKey, label: 'SATÉLITE 3D' }
+                        { key: 'DARK_BLUE' as MapStyleKey, label: 'NOCTURNO' },
+                        { key: 'VOYAGER' as MapStyleKey, label: 'CLARO' },
+                        { key: 'ESRI_STREET' as MapStyleKey, label: 'VIAL' },
+                        { key: 'SATELLITE' as MapStyleKey, label: 'SATÉLITE' }
                       ].map((m) => (
                         <button
                           key={m.key}
                           onClick={() => setExpandedMapStyle(m.key)}
-                          className={`px-2 py-1 rounded text-[9px] font-mono font-black uppercase cursor-pointer transition ${
+                          className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-black uppercase cursor-pointer transition ${
                             expandedMapStyle === m.key
-                              ? 'bg-cyan-400 text-slate-950 shadow-[0_0_10px_rgba(34,211,238,0.7)]'
+                              ? 'bg-cyan-400 text-slate-950 shadow-[0_0_8px_rgba(34,211,238,0.7)]'
                               : 'text-cyan-200 hover:bg-cyan-900/50'
                           }`}
                         >
@@ -1679,24 +1681,25 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                   {hasActiveMapFilter && (
                     <button
                       onClick={handleClearMapFilter}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/35 hover:bg-rose-500/55 border border-rose-300 text-rose-100 text-[9px] sm:text-[10px] font-mono font-black uppercase cursor-pointer transition shadow-[0_0_12px_rgba(244,63,94,0.45)]"
+                      className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/35 hover:bg-rose-500/55 border border-rose-300 text-rose-100 text-[9px] font-mono font-black uppercase cursor-pointer transition"
                     >
-                      <FilterX className="w-3.5 h-3.5" />
-                      <span>BORRAR FILTRO ({allCriticalPoints.length})</span>
+                      <FilterX className="w-3 h-3" />
+                      <span>BORRAR FILTRO</span>
                     </button>
                   )}
 
+                  {/* Botón de Salir / Minimizar Mapa */}
                   <button
                     onClick={() => {
                       setIsMapExpanded((prev) => !prev);
                       setIsPointsPanelMinimized(false);
                     }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-500/25 hover:bg-cyan-400/40 border border-cyan-300 text-cyan-100 text-[9px] sm:text-[10px] font-mono font-black uppercase cursor-pointer transition shadow-[0_0_12px_rgba(34,211,238,0.45)] shrink-0"
+                    className="flex items-center gap-1 px-3 py-1 rounded bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 text-slate-950 text-[10px] font-mono font-black uppercase cursor-pointer shadow-[0_0_15px_rgba(244,63,94,0.6)] transition shrink-0"
                   >
                     {isMapExpanded ? (
                       <>
-                        <Minimize2 className="w-3.5 h-3.5 text-amber-300" />
-                        <span>SALIR</span>
+                        <Minimize2 className="w-3.5 h-3.5 text-slate-950" />
+                        <span>SALIR (VOLVER)</span>
                       </>
                     ) : (
                       <>
@@ -1800,7 +1803,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                               onClick={handleClearMapFilter}
                               className="px-2 py-0.5 rounded bg-rose-500 text-white text-[9px] font-mono font-black uppercase shrink-0 cursor-pointer hover:bg-rose-400"
                             >
-                              BORRAR FILTRO
+                              BORRAR FILTROS
                             </button>
                           </div>
                         )}
