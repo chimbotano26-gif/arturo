@@ -3,7 +3,7 @@ import {
   Shield, Search, Crosshair, Wifi, CheckSquare,
   Square, Layers, X, RotateCcw, Activity, FileDown,
   Edit3, Eye, CalendarRange, Maximize2, Minimize2,
-  Navigation, ChevronDown, ChevronUp, Radio, FilterX, Map as MapIcon, User, Truck, Clock, Zap
+  Navigation, ChevronDown, ChevronUp, Radio, FilterX, Map as MapIcon, User, Truck, Clock, Atom
 } from 'lucide-react';
 import { IncidentRecord } from '../types';
 
@@ -341,21 +341,6 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<{ id: string; marker: any; el: HTMLDivElement; pt: CriticalMapPoint }[]>([]);
   const [mapReady, setMapReady] = useState<boolean>(false);
-
-  // Reloj en tiempo real estilo HUD limpio
-  const [currentTime, setCurrentTime] = useState<string>('');
-  const [currentDateStr, setCurrentDateStr] = useState<string>('');
-
-  useEffect(() => {
-    const updateClock = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }));
-      setCurrentDateStr(now.toLocaleDateString('es-PE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase());
-    };
-    updateClock();
-    const interval = setInterval(updateClock, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const urbanizaciones = useMemo(() => {
     const map = new Map<string, number>();
@@ -1213,60 +1198,56 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
         <div className="absolute -bottom-[2px] -left-[2px] w-12 h-12 border-b-4 border-l-4 border-cyan-300 rounded-bl-2xl pointer-events-none" />
         <div className="absolute -bottom-[2px] -right-[2px] w-12 h-12 border-b-4 border-r-4 border-cyan-300 rounded-br-2xl pointer-events-none" />
 
-        {/* HEADER LIMPIO Y ESTÉTICO (EXACTO A TU REFERENCIA) */}
+        {/* HEADER ORIGINAL ESTABLE */}
         <header className="flex flex-col xl:flex-row items-center justify-between gap-3 pb-3 mb-4 border-b border-cyan-500/40">
-          
-          {/* Bloque Izquierdo: Reloj y Estado en Vivo */}
-          <div className="flex items-center gap-3 w-full xl:w-auto bg-[#030c1a] border-2 border-cyan-400/60 rounded-2xl px-4 py-2.5 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
-            <div className="w-10 h-10 rounded-xl bg-cyan-950/90 border border-cyan-400 flex items-center justify-center shrink-0 shadow-[0_0_10px_rgba(34,211,238,0.4)]">
-              <Shield className="w-5 h-5 text-cyan-300" />
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full xl:w-auto">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500/35 to-blue-950 border-2 border-cyan-300 flex items-center justify-center shadow-[0_0_25px_rgba(34,211,238,0.6)] shrink-0">
+              <Shield className="w-8 h-8 text-cyan-200" />
             </div>
-            <div className="font-mono text-left">
-              <div className="flex items-center gap-2 text-[10px] text-cyan-300 font-bold">
-                <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-cyan-400" /> {currentDateStr}</span>
-                <span className="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-400/40 text-[9px] font-black animate-pulse">
-                  ● EN VIVO
+
+            <div className="flex-1 sm:flex-initial border border-cyan-400/60 bg-gradient-to-r from-[#061830] via-[#092242] to-[#061830] rounded-xl px-3.5 py-2 flex items-center gap-3.5 shadow-[inset_0_0_20px_rgba(6,182,212,0.22)]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono text-cyan-300 tracking-widest font-bold">TELEMETRÍA C2</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                </div>
+                <span className="text-base font-mono font-black text-emerald-300 flex items-center gap-1.5">
+                  <Wifi className="w-4 h-4 text-emerald-400" /> {safeRecords.length.toLocaleString()} REG
                 </span>
               </div>
-              <div className="text-lg font-black text-cyan-100 tracking-wider drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">
-                {currentTime || '10:00:00'}
-              </div>
             </div>
           </div>
 
-          {/* Bloque Central: Título Oficial SICEP */}
-          <div className="flex-1 max-w-3xl w-full bg-[#040e22] border-2 border-cyan-400/70 rounded-2xl px-6 py-2.5 text-center shadow-[0_0_30px_rgba(6,182,212,0.3),inset_0_0_15px_rgba(34,211,238,0.15)] relative overflow-hidden flex items-center justify-center">
-            <div className="flex-1 text-center">
-              <h1 className="text-xs sm:text-sm md:text-base font-black tracking-[0.14em] text-white uppercase drop-shadow-[0_0_12px_rgba(34,211,238,0.95)]">
-                SICEP: SISTEMA INTEGRADO DE CONTROL Y ESTADÍSTICA PATRULLERA
-              </h1>
-              <div className="flex items-center justify-center gap-3 text-[10px] font-mono text-cyan-200 mt-0.5">
-                <span className="text-cyan-300 font-bold">OBJETIVO: {activeTitle}</span>
-                <span>•</span>
-                <span className="text-amber-300 font-bold">TURNO: {selectedTurno}</span>
-              </div>
+          <div className="flex-1 max-w-2xl w-full bg-gradient-to-r from-cyan-950 via-cyan-600/35 to-cyan-950 border-y-2 border-x border-cyan-300/90 rounded-xl px-4 py-2 text-center shadow-[0_0_35px_rgba(6,182,212,0.45)]">
+            <h1 className="text-xs sm:text-base md:text-lg font-black tracking-[0.12em] text-white uppercase drop-shadow-[0_0_12px_rgba(34,211,238,0.95)]">
+              SICEP: SISTEMA INTEGRADO DE CONTROL Y ESTADÍSTICA PATRULLERA
+            </h1>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 text-[10px] font-mono text-cyan-200 mt-0.5">
+              <span className="bg-cyan-500/25 px-2.5 py-0.5 rounded border border-cyan-300/50 font-bold truncate max-w-[280px]">
+                OBJETIVO: {activeTitle}
+              </span>
+              <span>•</span>
+              <span>TURNO: {selectedTurno}</span>
             </div>
           </div>
 
-          {/* Bloque Derecho: Botones de Acción Superiores */}
-          <div className="flex items-center gap-2.5 w-full xl:w-auto justify-end">
+          <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
             <button
               onClick={handleResetAllFilters}
-              className="px-4 py-2.5 bg-[#08182d] hover:bg-[#0f2647] border-2 border-rose-500/80 rounded-xl text-rose-200 text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_15px_rgba(244,63,94,0.3)] cursor-pointer transition flex items-center gap-2"
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400 rounded-xl text-rose-100 text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_15px_rgba(244,63,94,0.35)] cursor-pointer transition"
             >
-              <RotateCcw className="w-4 h-4 text-rose-400" />
+              <RotateCcw className="w-4 h-4" />
               <span>BORRAR FILTROS</span>
             </button>
 
             <button
               onClick={() => setIsPreviewOpen(true)}
-              className="px-4 py-2.5 bg-[#062622] hover:bg-[#0a3d36] border-2 border-emerald-400 rounded-xl text-emerald-100 text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_15px_rgba(16,185,129,0.35)] cursor-pointer transition flex items-center gap-2"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-500/40 to-cyan-500/40 hover:from-emerald-400/60 hover:to-cyan-400/60 border-2 border-emerald-300 rounded-xl text-white text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_25px_rgba(16,185,129,0.5)] cursor-pointer transition"
             >
-              <Eye className="w-4 h-4 text-emerald-400" />
+              <Eye className="w-4 h-4 text-emerald-200" />
               <span>VISTA PREVIA / PDF</span>
             </button>
           </div>
-
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
@@ -1616,9 +1597,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
               </div>
             </div>
 
-            {/* ================================================================= */}
-            {/* MAPA TÁCTICO 3D CON CONTROLES SUPERIORES FIJOS                   */}
-            {/* ================================================================= */}
+            {/* MAPA TÁCTICO 3D */}
             <div
               className={
                 isMapExpanded
