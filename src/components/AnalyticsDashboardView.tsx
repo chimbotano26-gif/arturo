@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
-  Shield, Search, Crosshair, Wifi, CheckSquare,
+  Shield, Search, Crosshair, Settings, Wifi, CheckSquare,
   Square, Layers, X, RotateCcw, Activity, FileDown,
   Edit3, Eye, CalendarRange, Maximize2, Minimize2,
-  Navigation, ChevronDown, ChevronUp, Radio, FilterX, Map as MapIcon, User, Truck, Clock, Atom
+  Navigation, ChevronDown, ChevronUp, Radio, FilterX, Map as MapIcon, User, Truck
 } from 'lucide-react';
 import { IncidentRecord } from '../types';
 
@@ -1198,7 +1198,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
         <div className="absolute -bottom-[2px] -left-[2px] w-12 h-12 border-b-4 border-l-4 border-cyan-300 rounded-bl-2xl pointer-events-none" />
         <div className="absolute -bottom-[2px] -right-[2px] w-12 h-12 border-b-4 border-r-4 border-cyan-300 rounded-br-2xl pointer-events-none" />
 
-        {/* HEADER ORIGINAL ESTABLE */}
+        {/* HEADER */}
         <header className="flex flex-col xl:flex-row items-center justify-between gap-3 pb-3 mb-4 border-b border-cyan-500/40">
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full xl:w-auto">
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500/35 to-blue-950 border-2 border-cyan-300 flex items-center justify-center shadow-[0_0_25px_rgba(34,211,238,0.6)] shrink-0">
@@ -1214,6 +1214,46 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                 <span className="text-base font-mono font-black text-emerald-300 flex items-center gap-1.5">
                   <Wifi className="w-4 h-4 text-emerald-400" /> {safeRecords.length.toLocaleString()} REG
                 </span>
+                <div className="flex gap-1 mt-1">
+                  {[100, 85, 92, 70, 95, 80].map((w, i) => (
+                    <div key={i} className="w-4 h-1 bg-cyan-950 rounded-full overflow-hidden">
+                      <div className="h-full bg-cyan-400" style={{ width: `${w}%` }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <Settings className="w-6 h-6 text-cyan-300 animate-spin" style={{ animationDuration: '10s' }} />
+                <Settings className="w-4 h-4 text-emerald-400 -ml-1 mt-3 animate-spin" style={{ animationDuration: '7s', animationDirection: 'reverse' }} />
+              </div>
+
+              <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-cyan-500/40">
+                <div className="relative w-10 h-10 flex items-center justify-center">
+                  <svg className="w-10 h-10" viewBox="0 0 44 44">
+                    <circle cx="22" cy="22" r="19" stroke="#22d3ee" strokeWidth="1.2" strokeOpacity="0.5" fill="rgba(6,182,212,0.1)" />
+                    <circle cx="22" cy="22" r="12" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" fill="transparent" />
+                    <line x1="22" y1="3" x2="22" y2="41" stroke="#22d3ee" strokeOpacity="0.3" strokeWidth="0.8" />
+                    <line x1="3" y1="22" x2="41" y2="22" stroke="#22d3ee" strokeOpacity="0.3" strokeWidth="0.8" />
+                    <circle cx="28" cy="15" r="2.2" fill="#f43f5e" />
+                    <circle cx="15" cy="27" r="2" fill="#f59e0b" />
+                  </svg>
+                  <Radio className="w-3 h-3 text-cyan-200 absolute animate-pulse" />
+                </div>
+
+                <div className="font-mono text-[9px] leading-tight">
+                  <div className="flex items-center gap-1.5 text-cyan-200 font-bold">
+                    <span>SECTORES:</span>
+                    <span className="text-amber-300 font-black">{urbanizaciones.length}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-cyan-200 font-bold mt-0.5">
+                    <span>TIPOS:</span>
+                    <span className="text-emerald-300 font-black">{todasFrecuenciasModalidades.length}</span>
+                  </div>
+                  <div className="text-[8px] text-cyan-400 mt-0.5">
+                    {sectorLat.toFixed(4)}, {sectorLng.toFixed(4)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1234,7 +1274,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
           <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
             <button
               onClick={handleResetAllFilters}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400 rounded-xl text-rose-100 text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_15px_rgba(244,63,94,0.35)] cursor-pointer transition"
+              className="flex items-center gap-1.5 px-3 py-3 bg-rose-500/25 hover:bg-rose-500/40 border border-rose-400 rounded-xl text-rose-100 text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_15px_rgba(244,63,94,0.35)] cursor-pointer transition"
             >
               <RotateCcw className="w-4 h-4" />
               <span>BORRAR FILTROS</span>
@@ -1242,7 +1282,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
 
             <button
               onClick={() => setIsPreviewOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-500/40 to-cyan-500/40 hover:from-emerald-400/60 hover:to-cyan-400/60 border-2 border-emerald-300 rounded-xl text-white text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_25px_rgba(16,185,129,0.5)] cursor-pointer transition"
+              className="flex items-center gap-1.5 px-4 py-3 bg-gradient-to-r from-emerald-500/40 to-cyan-500/40 hover:from-emerald-400/60 hover:to-cyan-400/60 border-2 border-emerald-300 rounded-xl text-white text-xs font-mono font-black uppercase tracking-wider shadow-[0_0_25px_rgba(16,185,129,0.5)] cursor-pointer transition"
             >
               <Eye className="w-4 h-4 text-emerald-200" />
               <span>VISTA PREVIA / PDF</span>
@@ -1848,409 +1888,4 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                 <div className="absolute bottom-2 left-2 z-10 border border-cyan-400/70 bg-[#051326]/92 backdrop-blur-md rounded-lg px-2 py-1">
                   <div className="flex flex-wrap items-center gap-2 text-[9px] font-mono text-cyan-100">
                     {[
-                      { key: 'RED' as PinVariant, label: 'ROJO: ALTA', dot: 'bg-rose-500' },
-                      { key: 'AMBER' as PinVariant, label: 'AMARILLO: MEDIA', dot: 'bg-amber-400' },
-                      { key: 'BLUE' as PinVariant, label: 'CELESTE: PATRULLAJE', dot: 'bg-sky-400' },
-                      { key: 'EMERALD' as PinVariant, label: 'VERDE: APOYO', dot: 'bg-emerald-400' }
-                    ].map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={() => handleSelectColorFilter(item.key)}
-                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded cursor-pointer transition ${
-                          selectedMapColor === item.key ? 'bg-cyan-500/35 text-white font-black ring-1 ring-cyan-300' : 'hover:bg-cyan-900/40'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full inline-block ${item.dot}`} />
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* MATRIZ DE FRECUENCIA DE INCIDENCIAS */}
-            <div className="border-2 border-cyan-400/70 bg-[#051428]/95 rounded-xl p-3.5 shadow-[inset_0_0_25px_rgba(6,182,212,0.12)]">
-              <div className="flex items-center justify-between mb-2.5">
-                <h3 className="text-xs font-mono font-black text-white uppercase flex items-center gap-1.5">
-                  <Activity className="w-4 h-4 text-cyan-400" />
-                  MATRIZ DE FRECUENCIA ({activeTitle})
-                </h3>
-                <span className="text-[10px] font-mono text-emerald-300 font-bold">
-                  {todasFrecuenciasModalidades.length} MODALIDADES // {hudData.total.toLocaleString()} CASOS
-                </span>
-              </div>
-              <div className="space-y-2 max-h-[205px] overflow-y-auto pr-1">
-                {frecuenciaModalidadesTop.length === 0 ? (
-                  <div className="text-center py-6 text-xs font-mono text-cyan-500">SIN INCIDENCIAS EN ESTE FILTRO</div>
-                ) : (
-                  frecuenciaModalidadesTop.map((item, idx) => (
-                    <div key={item.modalidad} className="grid grid-cols-12 items-center gap-2 text-xs">
-                      <span className="col-span-5 sm:col-span-4 font-mono text-[11px] text-white truncate">{item.modalidad}</span>
-                      <div className="col-span-5 sm:col-span-6 bg-[#020813] h-4 rounded-sm border border-cyan-400/60 p-0.5 overflow-hidden">
-                        <div
-                          className={`h-full rounded-xs ${
-                            idx === 0
-                              ? 'bg-gradient-to-r from-cyan-400 via-amber-300 to-rose-500 shadow-[0_0_12px_#f43f5e]'
-                              : idx === 1
-                              ? 'bg-gradient-to-r from-cyan-400 via-emerald-300 to-amber-400 shadow-[0_0_12px_#f59e0b]'
-                              : 'bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-300 shadow-[0_0_10px_#22d3ee]'
-                          }`}
-                          style={{ width: `${Math.max(item.porcentaje, 5)}%` }}
-                        />
-                      </div>
-                      <span className="col-span-2 text-right font-mono text-[11px] font-black text-cyan-200">
-                        {item.count} ({item.porcentaje}%)
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </main>
-
-          {/* COLUMNA DERECHA */}
-          <aside className="lg:col-span-3 flex flex-col gap-3">
-            <div className="border-2 border-cyan-400/60 bg-[#051428]/95 rounded-xl p-3 flex flex-col items-center">
-              <h3 className="text-xs font-mono font-black text-cyan-200 uppercase w-full text-left mb-1">INCIDENTES POR RECURSO</h3>
-              <div className="relative w-44 h-44 flex items-center justify-center my-0.5">
-                <svg className="w-44 h-44 -rotate-90" viewBox="0 0 110 110">
-                  <circle cx="55" cy="55" r="44" stroke="#0c243e" strokeWidth="7" fill="transparent" />
-                  <circle cx="55" cy="55" r="33" stroke="#0c243e" strokeWidth="6" fill="transparent" />
-                  <circle cx="55" cy="55" r="22" stroke="#0c243e" strokeWidth="5" fill="transparent" />
-                  <circle cx="55" cy="55" r="44" stroke="#22d3ee" strokeWidth="7" strokeDasharray={`${(hudData.pctManana / 100) * c1} ${c1}`} strokeLinecap="round" fill="transparent" className="drop-shadow-[0_0_8px_#22d3ee]" />
-                  <circle cx="55" cy="55" r="33" stroke="#f97316" strokeWidth="6" strokeDasharray={`${(hudData.pctTarde / 100) * c2} ${c2}`} strokeLinecap="round" fill="transparent" className="drop-shadow-[0_0_8px_#f97316]" />
-                  <circle cx="55" cy="55" r="22" stroke="#10b981" strokeWidth="5" strokeDasharray={`${(hudData.pctNoche / 100) * c3} ${c3}`} strokeLinecap="round" fill="transparent" />
-                </svg>
-                <div className="absolute text-center">
-                  <span className="text-xl font-black font-mono text-white block leading-none">{hudData.total.toLocaleString()}</span>
-                  <span className="text-[9px] font-mono text-cyan-300">EVENTOS</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 w-full text-center font-mono text-[10px] mt-1">
-                <div className="bg-[#030b17] p-1.5 rounded border border-cyan-400/40">
-                  <span className="text-cyan-300 block">MAÑ</span>
-                  <span className="font-bold text-white">{hudData.turnosCount.MAÑANA}</span>
-                </div>
-                <div className="bg-[#030b17] p-1.5 rounded border border-orange-400/40">
-                  <span className="text-orange-300 block">TAR</span>
-                  <span className="font-bold text-white">{hudData.turnosCount.TARDE}</span>
-                </div>
-                <div className="bg-[#030b17] p-1.5 rounded border border-emerald-400/40">
-                  <span className="text-emerald-300 block">NOC</span>
-                  <span className="font-bold text-white">{hudData.turnosCount.NOCHE}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-2 border-cyan-400/60 bg-[#051428]/95 rounded-xl p-3">
-              <h3 className="text-xs font-mono font-black text-cyan-200 uppercase mb-2">DESPLIEGUE POR UNIDAD</h3>
-              <div className="bg-[#020813] border border-cyan-400/40 rounded-lg p-1.5 mb-2.5">
-                <svg className="w-full h-12" viewBox="0 0 220 60">
-                  <path d="M0,45 Q25,10 50,35 T100,25 T150,38 T200,15 L220,25 L220,60 L0,60 Z" fill="rgba(16,185,129,0.35)" />
-                  <path d="M0,45 Q25,10 50,35 T100,25 T150,38 T200,15 L220,25" fill="none" stroke="#34d399" strokeWidth="2.4" />
-                </svg>
-              </div>
-              <div className="space-y-2">
-                {hudData.flotaList.map((item, i) => (
-                  <div key={item.unidad} className="space-y-0.5">
-                    <div className="flex justify-between text-[11px] font-mono">
-                      <span className="text-white truncate pr-2">{item.unidad}</span>
-                      <span className="text-emerald-300 font-black shrink-0">{item.casos}</span>
-                    </div>
-                    <div className="w-full bg-[#020813] h-1.5 rounded-full overflow-hidden border border-cyan-400/40">
-                      <div
-                        className={`h-full rounded-full ${
-                          i === 0 ? 'bg-gradient-to-r from-cyan-400 to-emerald-400' : i === 1 ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-cyan-400'
-                        }`}
-                        style={{ width: `${Math.max(item.pct, 8)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="border-2 border-emerald-400/75 bg-gradient-to-br from-[#072642] via-[#041428] to-[#020914] rounded-xl p-3.5 flex-1 flex flex-col justify-between shadow-[0_0_25px_rgba(16,185,129,0.28),inset_0_0_25px_rgba(34,211,238,0.14)] relative overflow-hidden">
-              <div className="flex items-center justify-between border-b border-cyan-500/30 pb-1.5">
-                <span className="text-[10px] font-mono font-black text-emerald-300 uppercase tracking-wider">
-                  JURISDICCIÓN // NUEVO CHIMBOTE
-                </span>
-                <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-emerald-500/25 border border-emerald-300 text-emerald-100 shadow-[0_0_10px_rgba(16,185,129,0.4)]">
-                  {pctDistritoNum}% DISTRITO
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3.5 my-auto py-2">
-                <div className="w-28 h-28 rounded-xl bg-[#020813] border-2 border-cyan-400/70 flex items-center justify-center shrink-0 relative shadow-[0_0_20px_rgba(34,211,238,0.25),inset_0_0_20px_rgba(34,211,238,0.2)]">
-                  <svg className="w-24 h-24" viewBox="0 0 80 80" fill="none">
-                    <line x1="20" y1="5" x2="20" y2="75" stroke="#22d3ee" strokeOpacity="0.22" strokeWidth="0.8" />
-                    <line x1="40" y1="5" x2="40" y2="75" stroke="#22d3ee" strokeOpacity="0.22" strokeWidth="0.8" />
-                    <line x1="60" y1="5" x2="60" y2="75" stroke="#22d3ee" strokeOpacity="0.22" strokeWidth="0.8" />
-                    <line x1="5" y1="25" x2="75" y2="25" stroke="#22d3ee" strokeOpacity="0.22" strokeWidth="0.8" />
-                    <line x1="5" y1="50" x2="75" y2="50" stroke="#22d3ee" strokeOpacity="0.22" strokeWidth="0.8" />
-                    <circle cx="40" cy="40" r="34" stroke="#22d3ee" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 4" />
-                    <path
-                      d="M18 14 L46 10 L65 24 L68 48 L52 68 L26 65 L14 44 Z"
-                      fill="rgba(16,185,129,0.2)"
-                      stroke="#22d3ee"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M26 24 L50 22 L56 44 L36 54 L22 40 Z"
-                      fill="rgba(34,211,238,0.16)"
-                      stroke="#34d399"
-                      strokeWidth="1.2"
-                      strokeDasharray="3 2"
-                    />
-                    <circle cx="41" cy="36" r="11" fill="rgba(245,158,11,0.3)" />
-                    <circle cx="41" cy="36" r="4.5" fill="#fbbf24" stroke="#ffffff" strokeWidth="1.5" />
-                  </svg>
-                  <span className="absolute top-1 left-1.5 text-[7px] font-mono text-cyan-400/80">NCH-GIS</span>
-                </div>
-
-                <div className="min-w-0 flex-1 font-mono flex flex-col justify-center">
-                  <div className="text-[10px] text-cyan-300 font-bold uppercase tracking-wider">
-                    SECTOR CORRESPONDIENTE:
-                  </div>
-                  <div className="text-xl xl:text-2xl font-black text-white leading-tight mt-0.5 break-words drop-shadow-[0_0_12px_rgba(34,211,238,0.9)]">
-                    {getSectorOficial(recordsInScope[0], activeTitle)}
-                  </div>
-                  <div className="text-[10px] text-emerald-300 font-bold mt-1 truncate">
-                    {activeTitle}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-cyan-500/30 font-mono">
-                <div className="bg-[#030b17] border border-cyan-400/40 rounded-lg px-2.5 py-1.5">
-                  <div className="text-[8px] text-cyan-300 uppercase">LUGARES AGRUPADOS</div>
-                  <div className="text-xs font-black text-white mt-0.5">
-                    {activeUrbsList.length} VARIANTE{activeUrbsList.length > 1 ? 'S' : ''}
-                  </div>
-                </div>
-                <div className="bg-[#030b17] border border-emerald-400/40 rounded-lg px-2.5 py-1.5">
-                  <div className="text-[8px] text-emerald-300 uppercase">PESO EN DISTRITO</div>
-                  <div className="w-full bg-cyan-950 h-1.5 rounded-full overflow-hidden mt-1.5">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400"
-                      style={{ width: `${Math.min(100, Math.max(pctDistritoNum * 3, 12))}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
-        </div>
-      </div>
-
-      {/* VENTANA MODAL DE VISTA PREVIA CON GRÁFICO 3D BISELADO ANTES DE DESCARGAR */}
-      {isPreviewOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-[#051326] border-2 border-cyan-400 rounded-2xl max-w-6xl w-full max-h-[92vh] flex flex-col shadow-[0_0_60px_rgba(6,182,212,0.5)] overflow-hidden">
-            <div className="bg-[#030b17] border-b border-cyan-500/40 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Eye className="w-5 h-5 text-emerald-400" />
-                <div>
-                  <h2 className="text-xs sm:text-sm font-mono font-black text-white uppercase">
-                    VISTA PREVIA DEL PDF // {activeTitle}
-                  </h2>
-                  <p className="text-[10px] font-mono text-cyan-300">
-                    Verifica los gráficos 3D y las tablas consolidadas antes de descargar
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-[#071930] p-1 rounded-xl border border-cyan-500/40">
-                <button
-                  onClick={() => setPreviewTab('FRECUENCIA')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-black uppercase cursor-pointer transition flex items-center gap-1.5 ${
-                    previewTab === 'FRECUENCIA'
-                      ? 'bg-cyan-500 text-slate-950 shadow-[0_0_12px_rgba(34,211,238,0.6)]'
-                      : 'text-cyan-200 hover:bg-cyan-950'
-                  }`}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  1. FRECUENCIA + GRÁFICO
-                </button>
-                <button
-                  onClick={() => setPreviewTab('ANUAL_MESES')}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-black uppercase cursor-pointer transition flex items-center gap-1.5 ${
-                    previewTab === 'ANUAL_MESES'
-                      ? 'bg-emerald-400 text-slate-950 shadow-[0_0_12px_rgba(16,185,129,0.6)]'
-                      : 'text-cyan-200 hover:bg-cyan-950'
-                  }`}
-                >
-                  <CalendarRange className="w-3.5 h-3.5" />
-                  2. COMPARATIVO ANUAL POR MESES
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleDownloadPdfFromPreview}
-                  disabled={exportingPdf}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 rounded-xl text-xs font-mono font-black uppercase cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.5)]"
-                >
-                  <FileDown className="w-4 h-4" />
-                  <span>{exportingPdf ? 'GENERANDO PDF...' : 'DESCARGAR ESTE PDF'}</span>
-                </button>
-                <button
-                  onClick={() => setIsPreviewOpen(false)}
-                  className="p-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/40 border border-rose-400 text-rose-200 cursor-pointer"
-                  title="Cerrar vista previa"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-900/90">
-              <div className="bg-white text-slate-900 rounded-lg shadow-2xl p-6 max-w-5xl mx-auto border border-slate-300">
-                <div className="bg-[#082040] text-white p-4 rounded-t-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div>
-                    <div className="text-sm font-black tracking-wide">MUNICIPALIDAD DISTRITAL DE NUEVO CHIMBOTE</div>
-                    <div className="text-[11px] text-cyan-300 font-semibold">
-                      GERENCIA DE SEGURIDAD CIUDADANA Y GESTIÓN DEL RIESGO DE DESASTRES - SERENAZGO
-                    </div>
-                  </div>
-                  <div className="text-[10px] font-mono bg-cyan-950/80 border border-cyan-400/50 px-2.5 py-1 rounded text-cyan-100">
-                    {previewTab === 'FRECUENCIA' ? 'FORMATO A4 VERTICAL' : 'FORMATO A4 HORIZONTAL (12 MESES)'}
-                  </div>
-                </div>
-
-                <div className="bg-sky-50 border border-sky-300 p-3.5 mt-3 mb-4 rounded">
-                  <div className="text-[10px] font-bold text-sky-900 uppercase">SECTOR / JURISDICCIÓN CONSOLIDADA:</div>
-                  <div className="text-base font-black text-sky-950">{activeTitle}</div>
-                  <div className="text-[11px] text-slate-600 mt-1">
-                    <strong>Lugares incluidos ({activeUrbsList.length}):</strong> {activeUrbsList.join(' • ')}
-                  </div>
-                </div>
-
-                {previewTab === 'FRECUENCIA' ? (
-                  <div>
-                    <BeveledHorizontalBarChart
-                      title={`DISTRIBUCIÓN DE MODALIDADES EN ${activeTitle}`}
-                      subtitle="Distribución de incidencias registradas en orden descendente de volumen operativo"
-                      items={todasFrecuenciasModalidades.slice(0, 10).map((m) => ({
-                        label: m.modalidad,
-                        count: m.count,
-                        porcentaje: m.porcentaje
-                      }))}
-                    />
-
-                    <h4 className="text-xs font-black text-slate-800 uppercase mb-2">
-                      TABLA DE FRECUENCIA CONSOLIDADA POR MODALIDAD
-                    </h4>
-                    <div className="overflow-x-auto border border-slate-300 rounded">
-                      <table className="w-full text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-[#082040] text-white">
-                            <th className="p-2 text-center w-12">N°</th>
-                            <th className="p-2 text-left">TIPO / MODALIDAD DE INCIDENCIA</th>
-                            <th className="p-2 text-right w-28">FRECUENCIA (fi)</th>
-                            <th className="p-2 text-right w-28">PORCENTAJE (%)</th>
-                            <th className="p-2 text-right w-28">% ACUMULADO</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {todasFrecuenciasModalidades.map((row, idx) => (
-                            <tr key={row.modalidad} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                              <td className="p-2 text-center border-t border-slate-200">{idx + 1}</td>
-                              <td className="p-2 font-semibold border-t border-slate-200">{row.modalidad}</td>
-                              <td className="p-2 text-right font-mono border-t border-slate-200">{row.count.toLocaleString()}</td>
-                              <td className="p-2 text-right font-mono border-t border-slate-200">{row.porcentaje.toFixed(2)}%</td>
-                              <td className="p-2 text-right font-mono border-t border-slate-200">{row.acumulado.toFixed(2)}%</td>
-                            </tr>
-                          ))}
-                          <tr className="bg-sky-100 font-black text-sky-950">
-                            <td className="p-2 text-center border-t-2 border-sky-400"></td>
-                            <td className="p-2 border-t-2 border-sky-400">TOTAL GENERAL CONSOLIDADO</td>
-                            <td className="p-2 text-right font-mono border-t-2 border-sky-400">{hudData.total.toLocaleString()}</td>
-                            <td className="p-2 text-right font-mono border-t-2 border-sky-400">100.00%</td>
-                            <td className="p-2 text-right font-mono border-t-2 border-sky-400">100.00%</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <h4 className="text-xs font-black text-slate-800 uppercase mb-2">
-                      CUADRO ANUAL COMPARATIVO DE FRECUENCIA POR MESES (ENE - DIC)
-                    </h4>
-                    <div className="overflow-x-auto border border-slate-300 rounded mb-4">
-                      <table className="w-full text-[11px] border-collapse">
-                        <thead>
-                          <tr className="bg-[#082040] text-white">
-                            <th className="p-1.5 text-center">N°</th>
-                            <th className="p-1.5 text-left min-w-[180px]">MODALIDAD</th>
-                            {MESES_CORTOS.map((m) => (
-                              <th key={m} className="p-1.5 text-center">{m}</th>
-                            ))}
-                            <th className="p-1.5 text-right bg-cyan-900">TOTAL</th>
-                            <th className="p-1.5 text-right bg-cyan-900">%</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {matrizAnualPorMeses.filas.map((fila, idx) => (
-                            <tr key={fila.modalidad} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                              <td className="p-1.5 text-center border-t border-slate-200">{idx + 1}</td>
-                              <td className="p-1.5 font-semibold border-t border-slate-200">{fila.modalidad}</td>
-                              {fila.meses.map((val, mIdx) => (
-                                <td
-                                  key={mIdx}
-                                  className={`p-1.5 text-center font-mono border-t border-slate-200 ${
-                                    val > 0 ? 'font-bold text-slate-900' : 'text-slate-300'
-                                  }`}
-                                >
-                                  {val === 0 ? '-' : val}
-                                </td>
-                              ))}
-                              <td className="p-1.5 text-right font-mono font-black bg-sky-50 border-t border-slate-200">
-                                {fila.total}
-                              </td>
-                              <td className="p-1.5 text-right font-mono bg-sky-50 border-t border-slate-200">
-                                {fila.porcentaje}%
-                              </td>
-                            </tr>
-                          ))}
-                          <tr className="bg-sky-100 font-black text-sky-950">
-                            <td className="p-1.5 text-center border-t-2 border-sky-400"></td>
-                            <td className="p-1.5 border-t-2 border-sky-400">TOTAL MENSUAL</td>
-                            {matrizAnualPorMeses.totalesMes.map((tot, idx) => (
-                              <td key={idx} className="p-1.5 text-center font-mono border-t-2 border-sky-400">
-                                {tot}
-                              </td>
-                            ))}
-                            <td className="p-1.5 text-right font-mono border-t-2 border-sky-400">
-                              {matrizAnualPorMeses.totalGeneral}
-                            </td>
-                            <td className="p-1.5 text-right font-mono border-t-2 border-sky-400">100%</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <BeveledHorizontalBarChart
-                      title={`EVOLUCIÓN MENSUAL DE INCIDENCIAS OPERATIVAS - ${activeTitle}`}
-                      subtitle="Distribución de atenciones registradas por mes en orden descendente de volumen operativo"
-                      items={matrizAnualPorMeses.rankingMensualDescendente}
-                    />
-                  </div>
-                )}
-
-                <div className="mt-5 pt-2.5 border-t border-slate-300 flex flex-col sm:flex-row justify-between text-[10px] text-slate-500 font-mono">
-                  <span>Sistema de Ciber-Monitoreo Serenazgo Nuevo Chimbote</span>
-                  <span className="font-bold text-slate-700">Desarrollado por: Arturo David Rivero Onofre (ADRO)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-export default AnalyticsDashboardView;
+                      { key: 'RED' as PinVariant, label: 'ROJO: AL
