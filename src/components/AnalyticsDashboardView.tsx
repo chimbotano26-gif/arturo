@@ -318,7 +318,17 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
   onFilterZona,
   onFilterTurno
 }) => {
-  const safeRecords = useMemo(() => (Array.isArray(records) ? records : []), [records]);
+  const safeRecords = useMemo(() => {
+    if (Array.isArray(records) && records.length > 0) return records;
+    try {
+      const cached = localStorage.getItem('sicep_incident_records');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  }, [records]);
 
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedUrbs, setSelectedUrbs] = useState<string[]>([]);
@@ -1058,7 +1068,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
             setMapReady(true);
             setTimeout(() => {
               try { map.resize(); } catch (e) {}
-            }, 250);
+            }, 300);
           }
         });
 
@@ -1104,7 +1114,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
       }
       setTimeout(() => {
         try { map.resize(); } catch (e) {}
-      }, 100);
+      }, 150);
     } catch (e) {}
   }, [isMapExpanded, expandedMapStyle, mapReady]);
 
@@ -1115,7 +1125,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
       try {
         map.resize();
       } catch (e) {}
-    }, 150);
+    }, 200);
     return () => clearTimeout(timer);
   }, [isMapExpanded]);
 
@@ -1135,7 +1145,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
       });
       setTimeout(() => {
         try { map.resize(); } catch (e) {}
-      }, 200);
+      }, 250);
     } catch (e) {}
   }, [activeTitle, mapReady]);
 
@@ -1697,7 +1707,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                       className="flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/35 hover:bg-rose-500/55 border border-rose-300 text-rose-100 text-[9px] font-mono font-black uppercase cursor-pointer transition"
                     >
                       <FilterX className="w-3 h-3" />
-                      <span>BORRAR FILTRO</span>
+                      <span>BORRAR FILTROS</span>
                     </button>
                   )}
 
@@ -1990,7 +2000,7 @@ export const AnalyticsDashboardView: React.FC<AnalyticsDashboardViewProps> = ({
                   <span className="font-bold text-white">{hudData.turnosCount.TARDE}</span>
                 </div>
                 <div className="bg-[#030b17] p-1.5 rounded border border-emerald-400/40">
-                  <span className="text-cyan-300 block">NOC</span>
+                  <span className="text-emerald-300 block">NOC</span>
                   <span className="font-bold text-white">{hudData.turnosCount.NOCHE}</span>
                 </div>
               </div>
